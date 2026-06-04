@@ -1,13 +1,13 @@
 {
   "companyProfile": {
-    "name": "Acme Corporation Pvt Ltd",
+    "name": "Premium Testing Corp Ltd",
     "gstNumber": "22AAAAA0000A1Z5",
     "panNumber": "ABCDE1234F",
     "address": "Suite 101, Business Park, Tech Zone",
-    "city": "Mumbai",
+    "city": "Pune",
     "pincode": "400001",
     "state": "Maharashtra",
-    "email": "billing@company.com",
+    "email": "premium@testing.com",
     "phone": "+91 98765 43210",
     "bankName": "HDFC Bank",
     "accountNumber": "50200012345678",
@@ -313,6 +313,19 @@
       "distanceKm": 980,
       "status": "Expired",
       "validUntil": "2026-05-31"
+    }
+  ],
+  "users": [
+    {
+      "id": "user-1",
+      "ownerName": "Admin User",
+      "companyName": "Acme Corporation Pvt Ltd",
+      "email": "admin@ebilltree.com",
+      "password": "admin123",
+      "phone": "+91 98765 43210",
+      "gstNumber": "22AAAAA0000A1Z5",
+      "address": "Suite 101, Business Park, Tech Zone",
+      "registeredAt": "2026-01-01T00:00:00.000Z"
     }
   ]
 }

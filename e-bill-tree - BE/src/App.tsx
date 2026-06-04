@@ -192,6 +192,8 @@ export default function App() {
   const handleLogout = () => {
     localStorage.removeItem('ebt_logged_in_user');
     localStorage.removeItem('ebt_logged_in_company');
+    localStorage.removeItem('ebt_user_email');
+    localStorage.removeItem('ebt_user_id');
     setScreen('login');
     setProfileDropdownOpen(false);
   };

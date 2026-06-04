@@ -20,6 +20,7 @@ import {
 } from './mockData';
 
 // import components
+import { EnterpriseAPI } from './services/api';
 import CoverScreen from './components/CoverScreen';
 import AuthScreens from './components/AuthScreens';
 import CompaniesSetupTab from './components/CompanySetupTab';
@@ -50,7 +51,7 @@ export default function App() {
   const [challans, setChallans] = useState<Challan[]>(DEFAULT_CHALLANS);
   const [ewayBills, setEwayBills] = useState<EWayBill[]>(DEFAULT_EWAY_BILLS);
 
-  // Load from local storage on mount
+  // Load from local storage on mount (instant local state resolution) then sync with Express API
   useEffect(() => {
     setCompanyProfile(getStoredData('ebt_company_profile', DEFAULT_COMPANY_PROFILE));
     setCustomers(getStoredData('ebt_customers', DEFAULT_CUSTOMERS));
@@ -66,79 +67,117 @@ export default function App() {
       setCompanyName(loggedCompany);
       setScreen('dashboard');
     }
+
+    // Load full dataset from actual Express backend
+    EnterpriseAPI.fetchInitialData()
+      .then((payload) => {
+        setCompanyProfile(payload.companyProfile);
+        setCustomers(payload.customers);
+        setProducts(payload.products);
+        setInvoices(payload.invoices);
+        setChallans(payload.challans);
+        setEwayBills(payload.ewayBills);
+
+        // Warm up client fallback offline state
+        setStoredData('ebt_company_profile', payload.companyProfile);
+        setStoredData('ebt_customers', payload.customers);
+        setStoredData('ebt_products', payload.products);
+        setStoredData('ebt_invoices', payload.invoices);
+        setStoredData('ebt_challans', payload.challans);
+        setStoredData('ebt_eway_bills', payload.ewayBills);
+
+        if (payload.companyProfile?.name) {
+          setCompanyName(payload.companyProfile.name);
+        }
+      })
+      .catch((err) => {
+        console.warn("Express API failed, running in resilient fallback:", err.message);
+      });
   }, []);
 
-  // Sync back to local storage on changes
+  // Sync back to local storage and remote Express API
   const handleSaveProfile = (newProfile: CompanyProfile) => {
     setCompanyProfile(newProfile);
     setCompanyName(newProfile.name);
     setStoredData('ebt_company_profile', newProfile);
+    EnterpriseAPI.saveCompanyProfile(newProfile).catch(console.error);
   };
 
   const handleAddCustomer = (cust: Customer) => {
-    const updated = [...customers, cust];
+    const updated = [...customers.filter(c => c.id !== cust.id), cust];
     setCustomers(updated);
     setStoredData('ebt_customers', updated);
+    EnterpriseAPI.saveCustomer(cust).catch(console.error);
   };
 
   const handleDeleteCustomer = (id: string) => {
     const updated = customers.filter(c => c.id !== id);
     setCustomers(updated);
     setStoredData('ebt_customers', updated);
+    EnterpriseAPI.deleteCustomer(id).catch(console.error);
   };
 
   const handleAddProduct = (prod: Product) => {
-    const updated = [...products, prod];
+    const updated = [...products.filter(p => p.id !== prod.id), prod];
     setProducts(updated);
     setStoredData('ebt_products', updated);
+    EnterpriseAPI.saveProduct(prod).catch(console.error);
   };
 
   const handleDeleteProduct = (id: string) => {
     const updated = products.filter(p => p.id !== id);
     setProducts(updated);
     setStoredData('ebt_products', updated);
+    EnterpriseAPI.deleteProduct(id).catch(console.error);
   };
 
   const handleAddInvoice = (inv: Invoice) => {
-    const updated = [...invoices, inv];
+    const updated = [...invoices.filter(i => i.id !== inv.id), inv];
     setInvoices(updated);
     setStoredData('ebt_invoices', updated);
+    EnterpriseAPI.saveInvoice(inv).catch(console.error);
   };
 
   const handleDeleteInvoice = (id: string) => {
     const updated = invoices.filter(inv => inv.id !== id);
     setInvoices(updated);
     setStoredData('ebt_invoices', updated);
+    EnterpriseAPI.deleteInvoice(id).catch(console.error);
   };
 
   const handleUpdateInvoiceStatus = (id: string, status: Invoice['status']) => {
     const updated = invoices.map(inv => inv.id === id ? { ...inv, status } : inv);
     setInvoices(updated);
     setStoredData('ebt_invoices', updated);
+    EnterpriseAPI.updateInvoiceStatus(id, status).catch(console.error);
   };
 
   const handleAddChallan = (ch: Challan) => {
-    const updated = [...challans, ch];
+    const updated = [...challans.filter(c => c.id !== ch.id), ch];
     setChallans(updated);
     setStoredData('ebt_challans', updated);
+    EnterpriseAPI.saveChallan(ch).catch(console.error);
   };
 
   const handleDeleteChallan = (id: string) => {
     const updated = challans.filter(ch => ch.id !== id);
     setChallans(updated);
     setStoredData('ebt_challans', updated);
+    EnterpriseAPI.deleteChallan(id).catch(console.error);
   };
 
   const handleAddEWayBill = (ew: EWayBill) => {
-    const updated = [...ewayBills, ew];
+    const updated = [...ewayBills.filter(e => e.id !== ew.id), ew];
     setEwayBills(updated);
     setStoredData('ebt_eway_bills', updated);
+    EnterpriseAPI.saveEWayBill(ew).catch(console.error);
   };
 
   const handleDeleteEWayBill = (id: string) => {
     const updated = ewayBills.filter(ew => ew.id !== id);
     setEwayBills(updated);
     setStoredData('ebt_eway_bills', updated);
+    EnterpriseAPI.deleteEWayBill(id).catch(console.error);
   };
 
   const handleLoginSuccess = (user: string, company: string) => {
@@ -153,6 +192,8 @@ export default function App() {
   const handleLogout = () => {
     localStorage.removeItem('ebt_logged_in_user');
     localStorage.removeItem('ebt_logged_in_company');
+    localStorage.removeItem('ebt_user_email');
+    localStorage.removeItem('ebt_user_id');
     setScreen('login');
     setProfileDropdownOpen(false);
   };

@@ -1,10 +1,17 @@
-import express from "express";
+import express, { Request, Response, NextFunction } from "express";
 import path from "path";
 import fs from "fs";
 import { createServer as createViteServer } from "vite";
 
-// Define the database shape matching our schema
+// ─── Database Configuration ────────────────────────────────────────────────
 const DB_FILE_PATH = path.join(process.cwd(), "database.json");
+
+// ─── Logging utility ───────────────────────────────────────────────────────
+const log = {
+  info: (msg: string) => console.log(`[INFO] ${new Date().toISOString()} - ${msg}`),
+  warn: (msg: string) => console.warn(`[WARN] ${new Date().toISOString()} - ${msg}`),
+  error: (msg: string, err?: unknown) => console.error(`[ERROR] ${new Date().toISOString()} - ${msg}`, err || ""),
+};
 
 // Define initial base mock data matching src/mockData.ts
 const INITIAL_DB = {
@@ -307,40 +314,83 @@ const INITIAL_DB = {
       status: "Expired",
       validUntil: "2026-05-31"
     }
+  ],
+  users: [
+    {
+      id: "user-1",
+      ownerName: "Admin User",
+      companyName: "Acme Corporation Pvt Ltd",
+      email: "admin@ebilltree.com",
+      password: "admin123",
+      phone: "+91 98765 43210",
+      gstNumber: "22AAAAA0000A1Z5",
+      address: "Suite 101, Business Park, Tech Zone",
+      registeredAt: "2026-01-01T00:00:00.000Z"
+    }
   ]
 };
 
-// Helper to read database
+// ─── Database helpers ──────────────────────────────────────────────────────
 function readDatabase() {
   try {
     if (!fs.existsSync(DB_FILE_PATH)) {
       fs.writeFileSync(DB_FILE_PATH, JSON.stringify(INITIAL_DB, null, 2), "utf-8");
+      log.info("Database initialized with default data");
       return INITIAL_DB;
     }
     const raw = fs.readFileSync(DB_FILE_PATH, "utf-8");
     return JSON.parse(raw);
   } catch (error) {
-    console.error("Error reading database file, returning initial values", error);
+    log.error("Failed to read database, returning defaults", error);
     return INITIAL_DB;
   }
 }
 
-// Helper to write database
 function writeDatabase(data: typeof INITIAL_DB) {
   try {
     fs.writeFileSync(DB_FILE_PATH, JSON.stringify(data, null, 2), "utf-8");
+    return true;
   } catch (error) {
-    console.error("Error writing to database file", error);
+    log.error("Failed to write database", error);
+    return false;
   }
 }
 
+// ─── Validation helpers ────────────────────────────────────────────────────
+function validateRequired(body: Record<string, unknown>, fields: string[]): string | null {
+  for (const field of fields) {
+    if (!body[field] || (typeof body[field] === "string" && (body[field] as string).trim() === "")) {
+      return `Missing required field: ${field}`;
+    }
+  }
+  return null;
+}
+
+// ─── Server bootstrap ──────────────────────────────────────────────────────
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = Number(process.env.PORT) || 3000;
 
-  // Body parsers
-  app.use(express.json());
+  // ─── Global middleware ───────────────────────────────────────────────────
+  app.use(express.json({ limit: "10mb" }));
   app.use(express.urlencoded({ extended: true }));
+
+  // CORS for FE dev server
+  app.use((_req: Request, res: Response, next: NextFunction) => {
+    res.header("Access-Control-Allow-Origin", "*");
+    res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+    res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    if (_req.method === "OPTIONS") return res.sendStatus(204);
+    next();
+  });
+
+  // Request logging
+  app.use((req: Request, _res: Response, next: NextFunction) => {
+    if (req.path.startsWith("/api")) {
+      log.info(`${req.method} ${req.path}`);
+    }
+    next();
+  });
 
   // Ensure database is initialized
   readDatabase();
@@ -358,25 +408,187 @@ async function startServer() {
   // API 2: Configure enterprise Company Profile details
   app.post("/api/company-profile", (req, res) => {
     try {
+      const err = validateRequired(req.body, ["name", "email"]);
+      if (err) return res.status(400).json({ error: err });
+
       const db = readDatabase();
-      db.companyProfile = req.body;
+      db.companyProfile = { ...db.companyProfile, ...req.body };
       writeDatabase(db);
+      log.info(`Company profile updated: ${db.companyProfile.name}`);
       res.json({ success: true, companyProfile: db.companyProfile });
     } catch (e: any) {
       res.status(500).json({ error: e.message || "Failed to update company profile." });
     }
   });
 
+  // API: Authentication endpoints
+  // Register new user
+  app.post("/api/auth/register", (req, res) => {
+    try {
+      const err = validateRequired(req.body, ["ownerName", "companyName", "email", "password"]);
+      if (err) return res.status(400).json({ error: err });
+
+      const db = readDatabase();
+      if (!db.users) db.users = [];
+
+      // Check if user already exists
+      const existing = db.users.find((u: any) => u.email === req.body.email);
+      if (existing) {
+        return res.status(409).json({ error: "User with this email already exists" });
+      }
+
+      const newUser = {
+        id: "user-" + Date.now(),
+        ownerName: req.body.ownerName,
+        companyName: req.body.companyName,
+        email: req.body.email,
+        password: req.body.password,
+        phone: req.body.phone || "",
+        gstNumber: req.body.gstNumber || "",
+        address: req.body.address || "",
+        registeredAt: new Date().toISOString(),
+      };
+      db.users.push(newUser);
+      writeDatabase(db);
+      log.info(`User registered: ${newUser.ownerName} (${newUser.email})`);
+
+      // Generate OTP for verification
+      const otp = String(Math.floor(100000 + Math.random() * 900000));
+      if (!db._otpStore) db._otpStore = {};
+      db._otpStore[newUser.email] = { otp, expiresAt: Date.now() + 600000 };
+      writeDatabase(db);
+
+      res.status(201).json({
+        success: true,
+        userId: newUser.id,
+        email: newUser.email,
+        otp,
+        message: "Registration successful. OTP sent to email.",
+      });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message || "Registration failed." });
+    }
+  });
+
+  // Login
+  app.post("/api/auth/login", (req, res) => {
+    try {
+      const err = validateRequired(req.body, ["email", "password"]);
+      if (err) return res.status(400).json({ error: err });
+
+      const db = readDatabase();
+      if (!db.users) db.users = [];
+
+      const user = db.users.find((u: any) => u.email === req.body.email && u.password === req.body.password);
+      if (!user) {
+        return res.status(401).json({ error: "Invalid email or password" });
+      }
+
+      log.info(`User logged in: ${user.ownerName} (${user.email})`);
+      res.json({
+        success: true,
+        userId: user.id,
+        ownerName: user.ownerName,
+        companyName: user.companyName,
+        email: user.email,
+      });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message || "Login failed." });
+    }
+  });
+
+  // Forgot password - send OTP
+  app.post("/api/auth/forgot-password", (req, res) => {
+    try {
+      const err = validateRequired(req.body, ["email"]);
+      if (err) return res.status(400).json({ error: err });
+
+      const db = readDatabase();
+      if (!db.users) db.users = [];
+
+      const user = db.users.find((u: any) => u.email === req.body.email);
+      if (!user) {
+        return res.status(404).json({ error: "No account found with this email" });
+      }
+
+      const otp = String(Math.floor(100000 + Math.random() * 900000));
+      if (!db._otpStore) db._otpStore = {};
+      db._otpStore[req.body.email] = { otp, expiresAt: Date.now() + 600000 };
+      writeDatabase(db);
+
+      log.info(`OTP generated for: ${req.body.email}`);
+      res.json({ success: true, email: req.body.email, otp, message: "OTP sent successfully" });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message || "Failed to send OTP." });
+    }
+  });
+
+  // Verify OTP
+  app.post("/api/auth/verify-otp", (req, res) => {
+    try {
+      const err = validateRequired(req.body, ["email", "otp"]);
+      if (err) return res.status(400).json({ error: err });
+
+      const db = readDatabase();
+      const otpData = db._otpStore?.[req.body.email];
+      if (!otpData) {
+        return res.status(400).json({ error: "No OTP found for this email" });
+      }
+      if (otpData.expiresAt < Date.now()) {
+        delete db._otpStore[req.body.email];
+        writeDatabase(db);
+        return res.status(400).json({ error: "OTP has expired" });
+      }
+      if (otpData.otp !== req.body.otp) {
+        return res.status(400).json({ error: "Invalid OTP" });
+      }
+
+      delete db._otpStore[req.body.email];
+      writeDatabase(db);
+      log.info(`OTP verified for: ${req.body.email}`);
+      res.json({ success: true, message: "OTP verified successfully" });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message || "OTP verification failed." });
+    }
+  });
+
+  // Reset password
+  app.post("/api/auth/reset-password", (req, res) => {
+    try {
+      const err = validateRequired(req.body, ["email", "password"]);
+      if (err) return res.status(400).json({ error: err });
+
+      const db = readDatabase();
+      if (!db.users) db.users = [];
+
+      const userIdx = db.users.findIndex((u: any) => u.email === req.body.email);
+      if (userIdx === -1) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      db.users[userIdx].password = req.body.password;
+      writeDatabase(db);
+      log.info(`Password reset for: ${req.body.email}`);
+      res.json({ success: true, message: "Password reset successfully" });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message || "Password reset failed." });
+    }
+  });
+
   // API 3: Customers management
   app.post("/api/customers", (req, res) => {
     try {
+      const err = validateRequired(req.body, ["name", "email", "phone"]);
+      if (err) return res.status(400).json({ error: err });
+
       const db = readDatabase();
-      const newCustomer = req.body;
+      const newCustomer = { ...req.body };
       if (!newCustomer.id) {
         newCustomer.id = "cust-" + Date.now();
       }
       db.customers = [...db.customers.filter(c => c.id !== newCustomer.id), newCustomer];
       writeDatabase(db);
+      log.info(`Customer saved: ${newCustomer.name} (${newCustomer.id})`);
       res.status(201).json(newCustomer);
     } catch (e: any) {
       res.status(500).json({ error: e.message || "Failed to add customer." });
@@ -398,13 +610,17 @@ async function startServer() {
   // API 4: Stock catalogue/products management
   app.post("/api/products", (req, res) => {
     try {
+      const err = validateRequired(req.body, ["name", "hsnCode", "price"]);
+      if (err) return res.status(400).json({ error: err });
+
       const db = readDatabase();
-      const newProduct = req.body;
+      const newProduct = { ...req.body };
       if (!newProduct.id) {
         newProduct.id = "prod-" + Date.now();
       }
       db.products = [...db.products.filter(p => p.id !== newProduct.id), newProduct];
       writeDatabase(db);
+      log.info(`Product saved: ${newProduct.name} (${newProduct.id})`);
       res.status(201).json(newProduct);
     } catch (e: any) {
       res.status(500).json({ error: e.message || "Failed to add product." });
@@ -426,13 +642,20 @@ async function startServer() {
   // API 5: Tax Invoices endpoints
   app.post("/api/invoices", (req, res) => {
     try {
+      const err = validateRequired(req.body, ["customerId", "customerName", "items"]);
+      if (err) return res.status(400).json({ error: err });
+      if (!Array.isArray(req.body.items) || req.body.items.length === 0) {
+        return res.status(400).json({ error: "Invoice must contain at least one item" });
+      }
+
       const db = readDatabase();
-      const newInvoice = req.body;
+      const newInvoice = { ...req.body };
       if (!newInvoice.id) {
         newInvoice.id = "inv-" + Date.now();
       }
       db.invoices = [...db.invoices.filter(i => i.id !== newInvoice.id), newInvoice];
       writeDatabase(db);
+      log.info(`Invoice saved: ${newInvoice.invoiceNumber} (${newInvoice.id})`);
       res.status(201).json(newInvoice);
     } catch (e: any) {
       res.status(500).json({ error: e.message || "Failed to create invoice." });
@@ -469,13 +692,23 @@ async function startServer() {
   // API 6: Delivery Challans 
   app.post("/api/challans", (req, res) => {
     try {
+      const err = validateRequired(req.body, ["customerId", "customerName", "items"]);
+      if (err) return res.status(400).json({ error: err });
+      if (!Array.isArray(req.body.items) || req.body.items.length === 0) {
+        return res.status(400).json({ error: "Challan must contain at least one item" });
+      }
+
       const db = readDatabase();
-      const newChallan = req.body;
+      const newChallan = { ...req.body };
       if (!newChallan.id) {
         newChallan.id = "ch-" + Date.now();
       }
+      if (!newChallan.challanNumber) {
+        newChallan.challanNumber = "EBT-CH-" + Date.now().toString().slice(-6);
+      }
       db.challans = [...db.challans.filter(ch => ch.id !== newChallan.id), newChallan];
       writeDatabase(db);
+      log.info(`Challan saved: ${newChallan.challanNumber} (${newChallan.id})`);
       res.status(201).json(newChallan);
     } catch (e: any) {
       res.status(500).json({ error: e.message || "Failed to create challan." });
@@ -497,16 +730,31 @@ async function startServer() {
   // API 7: Transporter eWayBills
   app.post("/api/eway-bills", (req, res) => {
     try {
+      const err = validateRequired(req.body, ["invoiceId", "invoiceNumber", "vehicleNumber", "transporterName"]);
+      if (err) return res.status(400).json({ error: err });
+
       const db = readDatabase();
-      const newEWayBill = req.body;
+      const newEWayBill = { ...req.body };
       if (!newEWayBill.id) {
         newEWayBill.id = "ewb-" + Date.now();
       }
+      if (!newEWayBill.ewayBillNumber) {
+        newEWayBill.ewayBillNumber = String(Math.floor(Math.random() * 900000000000) + 100000000000);
+      }
+      if (!newEWayBill.validUntil) {
+        const validDate = new Date();
+        validDate.setDate(validDate.getDate() + 7);
+        newEWayBill.validUntil = validDate.toISOString().split("T")[0];
+      }
+      if (!newEWayBill.status) {
+        newEWayBill.status = "Active";
+      }
       db.ewayBills = [...db.ewayBills.filter(ew => ew.id !== newEWayBill.id), newEWayBill];
       writeDatabase(db);
+      log.info(`E-Way Bill saved: ${newEWayBill.ewayBillNumber} (${newEWayBill.id})`);
       res.status(201).json(newEWayBill);
     } catch (e: any) {
-      res.status(500).json({ error: e.message || "Failed parallel ewaybill write." });
+      res.status(500).json({ error: e.message || "Failed to save e-way bill." });
     }
   });
 
@@ -520,6 +768,17 @@ async function startServer() {
     } catch (e: any) {
       res.status(500).json({ error: e.message || "Failed to delete ewaybill." });
     }
+  });
+
+  // API: Health check
+  app.get("/api/health", (_req, res) => {
+    res.json({ status: "ok", uptime: process.uptime(), timestamp: new Date().toISOString() });
+  });
+
+  // Global error handler
+  app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
+    log.error("Unhandled error", err);
+    res.status(500).json({ error: "Internal server error" });
   });
 
   // Vite middle-layer orchestration or static build index asset serving

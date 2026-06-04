@@ -4,6 +4,7 @@ import {
 } from 'lucide-react';
 import React, { useState } from 'react';
 import { ScreenState } from '../types';
+import { EnterpriseAPI } from '../services/api';
 
 interface AuthScreensProps {
   currentScreen: ScreenState;
@@ -22,17 +23,19 @@ export default function AuthScreens({ currentScreen, setScreenState, onLoginSucc
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [errorText, setErrorText] = useState('');
+  const [successText, setSuccessText] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   // Temporary storage during step-wise flow (e.g. email targeted during verification)
   const [targetContact, setTargetContact] = useState('admin@ebilltree.com');
+  const [generatedOtp, setGeneratedOtp] = useState('');
 
   // Verify OTP local state
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
 
   // Handle register submission -> goes to OTP verification
-  const handleRegister = (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!companyName || !ownerName || !email || !password) {
       setErrorText("Please fill out all required fields.");
@@ -46,23 +49,23 @@ export default function AuthScreens({ currentScreen, setScreenState, onLoginSucc
     setIsSubmitting(true);
     setErrorText('');
 
-    // Save info temporarily to local storage to populate settings defaults
-    localStorage.setItem("temp_owner_name", ownerName);
-    localStorage.setItem("temp_company_name", companyName);
-    localStorage.setItem("temp_gst", gstNumber || "22AAAAA0000A1Z5");
-    localStorage.setItem("temp_email", email);
-    localStorage.setItem("temp_phone", phone || "+91 98765 43210");
-    localStorage.setItem("temp_address", address || "Suite 101, Business Park, Tech Zone");
-
-    setTimeout(() => {
-      setIsSubmitting(false);
+    try {
+      const result = await EnterpriseAPI.register({
+        ownerName, companyName, email, password, phone, gstNumber, address
+      });
+      setGeneratedOtp(result.otp);
       setTargetContact(email);
+      setSuccessText(`Account created! OTP sent to ${email}`);
       setScreenState('verify-otp');
-    }, 1200);
+    } catch (err: any) {
+      setErrorText(err.message || "Registration failed. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // Handle Login submission
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) {
       setErrorText("Please enter your credentials.");
@@ -72,53 +75,84 @@ export default function AuthScreens({ currentScreen, setScreenState, onLoginSucc
     setIsSubmitting(true);
     setErrorText('');
 
-    setTimeout(() => {
+    try {
+      const result = await EnterpriseAPI.login(email, password);
+      localStorage.setItem('ebt_logged_in_user', result.ownerName);
+      localStorage.setItem('ebt_logged_in_company', result.companyName);
+      localStorage.setItem('ebt_user_email', result.email);
+      localStorage.setItem('ebt_user_id', result.userId);
+      onLoginSuccess(result.ownerName, result.companyName);
+    } catch (err: any) {
+      setErrorText(err.message || "Login failed. Please check your credentials.");
+    } finally {
       setIsSubmitting(false);
-      const savedOwner = localStorage.getItem("temp_owner_name") || "Vishal Devstree";
-      const savedCompany = localStorage.getItem("temp_company_name") || "Devstree Corporate hub";
-      onLoginSuccess(savedOwner, savedCompany);
-    }, 1200);
+    }
   };
 
   // Handle Send OTP
-  const handleForgotPassword = (e: React.FormEvent) => {
+  const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email) {
-      setErrorText("Please provide an email or phone number.");
+      setErrorText("Please provide your registered email.");
       return;
     }
     setIsSubmitting(true);
-    setTargetContact(email);
+    setErrorText('');
 
-    setTimeout(() => {
-      setIsSubmitting(false);
+    try {
+      const result = await EnterpriseAPI.forgotPassword(email);
+      setGeneratedOtp(result.otp);
+      setTargetContact(email);
+      setSuccessText(`OTP sent to ${email}`);
       setScreenState('verify-otp');
-    }, 1000);
+    } catch (err: any) {
+      setErrorText(err.message || "Failed to send OTP.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // Handle Verify OTP -> goes to reset password
-  const handleVerifyOtp = (e: React.FormEvent) => {
+  const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
+    const otpString = otp.join('');
+    if (otpString.length !== 6) {
+      setErrorText("Please enter the complete 6-digit OTP.");
+      return;
+    }
     setIsSubmitting(true);
-    setTimeout(() => {
-      setIsSubmitting(false);
+    setErrorText('');
+
+    try {
+      await EnterpriseAPI.verifyOtp(targetContact, otpString);
+      setSuccessText("OTP verified successfully!");
       setScreenState('reset-password');
-    }, 1200);
+    } catch (err: any) {
+      setErrorText(err.message || "OTP verification failed.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // Handle Reset Password -> returns to Login
-  const handleResetPassword = (e: React.FormEvent) => {
+  const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!password || password !== confirmPassword) {
       setErrorText("Passwords must be valid and identical.");
       return;
     }
     setIsSubmitting(true);
-    setTimeout(() => {
-      setIsSubmitting(false);
+    setErrorText('');
+
+    try {
+      await EnterpriseAPI.resetPassword(targetContact, password);
+      setSuccessText("Password reset successfully! Please login.");
       setScreenState('login');
-      alert("Password has been successfully reset! Please login now.");
-    }, 1200);
+    } catch (err: any) {
+      setErrorText(err.message || "Password reset failed.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleOtpChange = (value: string, idx: number) => {
@@ -197,6 +231,18 @@ export default function AuthScreens({ currentScreen, setScreenState, onLoginSucc
             {errorText && (
               <div id="auth-error-alert" className="p-3 bg-red-50 text-red-600 border border-red-200 text-xs font-medium rounded-lg">
                 {errorText}
+              </div>
+            )}
+
+            {successText && (
+              <div id="auth-success-alert" className="p-3 bg-emerald-50 text-emerald-600 border border-emerald-200 text-xs font-medium rounded-lg">
+                {successText}
+              </div>
+            )}
+
+            {generatedOtp && currentScreen === 'verify-otp' && (
+              <div className="p-3 bg-amber-50 text-amber-700 border border-amber-200 text-xs font-medium rounded-lg">
+                <strong>Simulated OTP:</strong> {generatedOtp} <span className="text-amber-500">(for demo purposes)</span>
               </div>
             )}
 
