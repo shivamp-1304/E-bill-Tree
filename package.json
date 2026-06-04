@@ -1,0 +1,21 @@
+{
+  "name": "e-bill-tree",
+  "version": "1.0.0",
+  "description": "E-bill Tree - GST Billing & Invoicing Application",
+  "main": "index.js",
+  "scripts": {
+    "dev": "npm run dev --prefix \"e-bill-tree - BE\"",
+    "dev:fe": "npm run dev --prefix \"e-bill-tree - FE\"",
+    "build": "npm run build --prefix \"e-bill-tree - BE\"",
+    "start": "npm run start --prefix \"e-bill-tree - BE\"",
+    "install:all": "npm install && cd \"e-bill-tree - BE\" && npm install && cd ../\"e-bill-tree - FE\" && npm install",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "concurrently": "^10.0.3"
+  }
+}

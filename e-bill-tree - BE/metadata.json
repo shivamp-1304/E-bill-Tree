@@ -1,0 +1,6 @@
+{
+  "name": "E-bill Tree",
+  "description": "An elegant GST Billing, Invoice, Challan, E-Way Bill & Reports Management application.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
