@@ -337,12 +337,27 @@
       "gstNumber": "11111111111111111",
       "address": "DFBVDBCBCGBCBCGBCGB",
       "registeredAt": "2026-06-04T12:17:32.280Z"
+    },
+    {
+      "id": "user-1780580573665",
+      "ownerName": "jill",
+      "companyName": "MCBC",
+      "email": "jill.j@devstree.in",
+      "password": "test@123",
+      "phone": "222222222",
+      "gstNumber": "11111111111",
+      "address": "dsvncksdvbhksjbsk",
+      "registeredAt": "2026-06-04T13:42:53.665Z"
     }
   ],
   "_otpStore": {
     "shivam.p@devstree.in": {
-      "otp": "654826",
-      "expiresAt": 1780576052281
+      "otp": "615199",
+      "expiresAt": 1780581056984
+    },
+    "jill.j@devstree.in": {
+      "otp": "586937",
+      "expiresAt": 1780581173669
     }
   }
 }

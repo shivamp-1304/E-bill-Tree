@@ -4,11 +4,12 @@
   "description": "E-bill Tree - GST Billing & Invoicing Application",
   "main": "index.js",
   "scripts": {
-    "dev": "npm run dev --prefix \"e-bill-tree - BE\"",
+    "dev": "node -e \"const {spawn}=require('child_process');const opts={stdio:'inherit',shell:false};const be=spawn('npm',['run','dev'],{...opts,cwd:'e-bill-tree - BE'});const fe=spawn('npm',['run','dev'],{...opts,cwd:'e-bill-tree - FE'});const stop=()=>{be.kill('SIGTERM');fe.kill('SIGTERM');};process.on('SIGINT',stop);process.on('SIGTERM',stop);\"",
+    "dev:be": "npm run dev --prefix \"e-bill-tree - BE\"",
     "dev:fe": "npm run dev --prefix \"e-bill-tree - FE\"",
     "build": "npm run build --prefix \"e-bill-tree - BE\"",
     "start": "npm run start --prefix \"e-bill-tree - BE\"",
-    "install:all": "npm install && cd \"e-bill-tree - BE\" && npm install && cd ../\"e-bill-tree - FE\" && npm install",
+    "install:all": "npm install && npm install --prefix \"e-bill-tree - BE\" && npm install --prefix \"e-bill-tree - FE\"",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
