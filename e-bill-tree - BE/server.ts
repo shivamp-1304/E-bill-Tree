@@ -575,6 +575,49 @@ async function startServer() {
     }
   });
 
+  // API: Update user profile
+  app.put("/api/users/:id", (req, res) => {
+    try {
+      const db = readDatabase();
+      if (!db.users) db.users = [];
+
+      const { id } = req.params;
+      const userIdx = db.users.findIndex((u: any) => u.id === id);
+      if (userIdx === -1) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      // Don't allow changing password or email via this endpoint
+      const { password, ...updateData } = req.body;
+      db.users[userIdx] = { ...db.users[userIdx], ...updateData };
+      writeDatabase(db);
+
+      const { password: _, ...safeUser } = db.users[userIdx];
+      log.info(`User profile updated: ${db.users[userIdx].ownerName} (${id})`);
+      res.json({ success: true, user: safeUser });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message || "Failed to update user profile." });
+    }
+  });
+  // API: Get user profile by ID
+  app.get("/api/users/:id", (req, res) => {
+    try {
+      const db = readDatabase();
+      if (!db.users) db.users = [];
+
+      const { id } = req.params;
+      const user = db.users.find((u: any) => u.id === id);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const { password: _, ...safeUser } = user;
+      res.json(safeUser);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message || "Failed to fetch user profile." });
+    }
+  });
+
   // API 3: Customers management
   app.post("/api/customers", (req, res) => {
     try {

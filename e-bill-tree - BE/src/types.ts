@@ -117,4 +117,5 @@ export type DashboardTab =
   | 'challans'
   | 'eway-bill'
   | 'reports'
-  | 'settings';
+  | 'settings'
+  | 'profile';

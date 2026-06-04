@@ -243,4 +243,28 @@ export const EnterpriseAPI = {
     }
     return res.json();
   },
+
+  // ─── User Profile APIs ──────────────────────────────────────────────────
+
+  async getUserProfile(userId: string): Promise<{ id: string; ownerName: string; companyName: string; email: string; phone: string; gstNumber: string; address: string; avatarUrl?: string; registeredAt: string }> {
+    const res = await fetch(`/api/users/${userId}`);
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Failed to fetch user profile');
+    }
+    return res.json();
+  },
+
+  async updateUserProfile(userId: string, data: { ownerName?: string; companyName?: string; phone?: string; gstNumber?: string; address?: string; avatarUrl?: string }): Promise<{ success: boolean; user: { id: string; ownerName: string; companyName: string; email: string; phone: string; gstNumber: string; address: string; avatarUrl?: string } }> {
+    const res = await fetch(`/api/users/${userId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Failed to update user profile');
+    }
+    return res.json();
+  },
 };

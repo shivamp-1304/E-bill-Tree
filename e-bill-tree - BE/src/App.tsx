@@ -31,6 +31,7 @@ import EWayBillTab from './components/EWayBillTab';
 import ReportsTab from './components/ReportsTab';
 import InvoicesTab from './components/InvoicesTab';
 import DashboardOverview from './components/DashboardOverview';
+import UserProfileTab from './components/UserProfileTab';
 
 export default function App() {
   // Navigation & authorization states
@@ -42,6 +43,7 @@ export default function App() {
   // Authenticated user details
   const [ownerName, setOwnerName] = useState<string>('Stitch AI Admin');
   const [companyName, setCompanyName] = useState<string>('Acme Corporation Pvt Ltd');
+  const [userAvatar, setUserAvatar] = useState<string>('');
 
   // Persistence States
   const [companyProfile, setCompanyProfile] = useState<CompanyProfile>(DEFAULT_COMPANY_PROFILE);
@@ -67,6 +69,8 @@ export default function App() {
       setCompanyName(loggedCompany);
       setScreen('dashboard');
     }
+    const savedAvatar = localStorage.getItem('ebt_user_avatar') || '';
+    setUserAvatar(savedAvatar);
 
     // Load full dataset from actual Express backend
     EnterpriseAPI.fetchInitialData()
@@ -189,11 +193,19 @@ export default function App() {
     setActiveTab('overview');
   };
 
+  const handleUpdateUser = (newOwnerName: string, newCompanyName: string, avatarUrl: string) => {
+    setOwnerName(newOwnerName);
+    setCompanyName(newCompanyName);
+    setUserAvatar(avatarUrl);
+  };
+
   const handleLogout = () => {
     localStorage.removeItem('ebt_logged_in_user');
     localStorage.removeItem('ebt_logged_in_company');
     localStorage.removeItem('ebt_user_email');
     localStorage.removeItem('ebt_user_id');
+    localStorage.removeItem('ebt_user_avatar');
+    setUserAvatar('');
     setScreen('login');
     setProfileDropdownOpen(false);
   };
@@ -207,10 +219,15 @@ export default function App() {
     { tab: 'customers', label: 'Customer Directory', icon: Users },
     { tab: 'products', label: 'Stock Catalogue', icon: Settings },
     { tab: 'reports', label: 'EBT Analytics', icon: BarChart3 },
-    { tab: 'settings', label: 'Company Profile', icon: Landmark }
+    { tab: 'settings', label: 'Company Profile', icon: Landmark },
+    { tab: 'profile', label: 'User Profile', icon: CircleUser }
   ] as const;
 
   const currentTabLabel = navigationItems.find(it => it.tab === activeTab)?.label || 'Workspace';
+
+  // Avatar helper — returns initials from ownerName
+  const getInitials = (name: string) =>
+    name.split(' ').filter(Boolean).slice(0, 2).map(n => n[0].toUpperCase()).join('') || '?';
 
   return (
     <div className="bg-brand-bg text-brand-gray-dark min-h-screen font-sans overflow-x-hidden select-none">
@@ -263,13 +280,23 @@ export default function App() {
                 
                 {/* Brand Logo head and name */}
                 <div onClick={() => setActiveTab('overview')} className="flex items-center gap-2.5 cursor-pointer pb-4 border-b border-stone-100">
-                  <img 
-                    alt="EBT Logo" 
-                    className="w-10 h-10 object-contain hover:scale-115 transition-transform"
-                    src="https://lh3.googleusercontent.com/aida-public/AB6AXuCPW3EceoldRDNKHXhXbK0aGi6nD__kFN-wUrcGj5YS09Bt7cUvMv1Pe6zBeFURZrIU514uVzWj6MY3nWr9g4L73M8mrlAA1-sTN2AiyfkQ_esWu3sf-SAvgGiwiOJKrEYj7jrKuUdt8j6jXXsbyj0g7tEXc877fs3yVTqXo15vcaUqlziZ6L9vciQmi2vU0fu7Iw4p85xc4nj14Un1OoDNDB16outMrTPalbUXz0h0xoh43iFbJZktJNJia0tyjVq80mecpICV-K_f" 
-                  />
+                  {companyProfile.logoUrl ? (
+                    <img
+                      alt="Company Logo"
+                      className="w-10 h-10 object-contain rounded-lg hover:scale-105 transition-transform shrink-0"
+                      src={companyProfile.logoUrl}
+                    />
+                  ) : (
+                    <div className="w-10 h-10 rounded-lg bg-brand-primary/10 flex items-center justify-center shrink-0 hover:scale-105 transition-transform">
+                      <span className="text-xs font-extrabold text-brand-primary leading-none">
+                        {companyProfile.name ? companyProfile.name.slice(0, 2).toUpperCase() : 'EBT'}
+                      </span>
+                    </div>
+                  )}
                   <div>
-                    <h2 className="font-display font-extrabold text-[#3d6a00] leading-none mb-1 text-base">E-bill Tree</h2>
+                    <h2 className="font-display font-extrabold text-[#3d6a00] leading-none mb-1 text-base truncate max-w-[140px]">
+                      {companyProfile.name || 'E-bill Tree'}
+                    </h2>
                     <span className="text-[10px] text-brand-gray-medium font-bold tracking-wider uppercase">Billing Hub</span>
                   </div>
                 </div>
@@ -311,12 +338,22 @@ export default function App() {
             {/* MOBILE NAVIGATION HEADER APLETS */}
             <header className="md:hidden bg-white border-b border-stone-200 px-4 py-3 flex items-center justify-between relative z-40 select-none">
               <div className="flex items-center gap-2">
-                <img 
-                  alt="EBT Logo" 
-                  className="w-8 h-8 object-contain"
-                  src="https://lh3.googleusercontent.com/aida-public/AB6AXuCPW3EceoldRDNKHXhXbK0aGi6nD__kFN-wUrcGj5YS09Bt7cUvMv1Pe6zBeFURZrIU514uVzWj6MY3nWr9g4L73M8mrlAA1-sTN2AiyfkQ_esWu3sf-SAvgGiwiOJKrEYj7jrKuUdt8j6jXXsbyj0g7tEXc877fs3yVTqXo15vcaUqlziZ6L9vciQmi2vU0fu7Iw4p85xc4nj14Un1OoDNDB16outMrTPalbUXz0h0xoh43iFbJZktJNJia0tyjVq80mecpICV-K_f" 
-                />
-                <h2 className="font-display font-extrabold text-brand-primary text-sm lowercase leading-none">E-bill Tree</h2>
+                {companyProfile.logoUrl ? (
+                  <img
+                    alt="Company Logo"
+                    className="w-8 h-8 object-contain rounded-lg shrink-0"
+                    src={companyProfile.logoUrl}
+                  />
+                ) : (
+                  <div className="w-8 h-8 rounded-lg bg-brand-primary/10 flex items-center justify-center shrink-0">
+                    <span className="text-[10px] font-extrabold text-brand-primary leading-none">
+                      {companyProfile.name ? companyProfile.name.slice(0, 2).toUpperCase() : 'EBT'}
+                    </span>
+                  </div>
+                )}
+                <h2 className="font-display font-extrabold text-brand-primary text-sm leading-none truncate max-w-[140px]">
+                  {companyProfile.name || 'E-bill Tree'}
+                </h2>
               </div>
 
               <div className="flex items-center gap-3">
@@ -374,11 +411,17 @@ export default function App() {
                     onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
                     className="flex items-center gap-2.5 p-1.5 hover:bg-stone-50 rounded-full cursor-pointer transition-colors border border-stone-100 bg-stone-50/50"
                   >
-                    <img 
-                      alt="User profile" 
-                      className="w-8 h-8 rounded-full object-cover shrink-0" 
-                      src="https://lh3.googleusercontent.com/aida-public/AB6AXuDGBwB2PJjMKe0qf6p-Jtu44XZhgR0POAmlqSEljzh9ADmZCgVwBsSP_GVqyw-8Gkf5LWuESMYaIl-wYigDIDAujWdv6ef7Awxx3qNTa1QSJVIKfinCO7gDnjvfW-xZQFVn13Hgnl8Xxj3RGLPYrRrB1w-UWFXQ9Bfxo9NECS2IwuCv9Nm9pm0CZzuLDitO-xLNotYp6cWD0FV3tCwca--AEzU5ZaN-U-4gmpJwOcTNtFv_Bu9rTHmSfLeMZh2m69lU9b0fWBybXaiq" 
-                    />
+                    {userAvatar ? (
+                      <img
+                        alt="User profile"
+                        className="w-8 h-8 rounded-full object-cover shrink-0"
+                        src={userAvatar}
+                      />
+                    ) : (
+                      <div className="w-8 h-8 rounded-full bg-brand-primary/10 flex items-center justify-center shrink-0">
+                        <span className="text-[11px] font-extrabold text-brand-primary leading-none">{getInitials(ownerName)}</span>
+                      </div>
+                    )}
                     <span className="hidden md:block text-xs font-bold text-[#1a1c1e] pr-2 max-w-[120px] truncate">{ownerName || "Administrator"}</span>
                   </div>
 
@@ -392,7 +435,7 @@ export default function App() {
 
                       <button 
                         onClick={() => {
-                          setActiveTab('settings');
+                          setActiveTab('profile');
                           setProfileDropdownOpen(false);
                         }}
                         className="w-full text-left px-3 py-2 text-xs font-semibold hover:bg-stone-50 text-stone-700 rounded-lg flex items-center gap-2 cursor-pointer"
@@ -483,6 +526,15 @@ export default function App() {
                     initialProfile={companyProfile}
                     onSaveProfile={handleSaveProfile}
                     onNextStep={() => setActiveTab('overview')}
+                  />
+                )}
+
+                {activeTab === 'profile' && (
+                  <UserProfileTab
+                    ownerName={ownerName}
+                    companyName={companyName}
+                    userAvatar={userAvatar}
+                    onUpdateUser={handleUpdateUser}
                   />
                 )}
               </div>
