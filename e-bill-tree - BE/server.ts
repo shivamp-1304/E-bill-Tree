@@ -1,362 +1,30 @@
+/**
+ * E-bill Tree — Production Express Server with PostgreSQL
+ * ──────────────────────────────────────────────────────────────────────────────
+ * All data is stored in PostgreSQL. JSON file (database.json) is no longer used.
+ */
 import express, { Request, Response, NextFunction } from "express";
 import path from "path";
-import fs from "fs";
 import { createServer as createViteServer } from "vite";
+import dotenv from "dotenv";
 
-// ─── Database Configuration ────────────────────────────────────────────────
-const DB_FILE_PATH = path.join(process.cwd(), "database.json");
+import { pool, initializeDatabase } from "./src/db/pool";
+import {
+  CompanyProfileRepo, UserRepo, OtpRepo,
+  CustomerRepo, ProductRepo, InvoiceRepo, ChallanRepo, EWayBillRepo
+} from "./src/db/repositories";
 
-// ─── Logging utility ───────────────────────────────────────────────────────
+dotenv.config({ path: ".env" });
+dotenv.config({ path: "../.env" });
+
+// ─── Logging utility ────────────────────────────────────────────────────────
 const log = {
   info: (msg: string) => console.log(`[INFO] ${new Date().toISOString()} - ${msg}`),
   warn: (msg: string) => console.warn(`[WARN] ${new Date().toISOString()} - ${msg}`),
   error: (msg: string, err?: unknown) => console.error(`[ERROR] ${new Date().toISOString()} - ${msg}`, err || ""),
 };
 
-// Define initial base mock data matching src/mockData.ts
-const INITIAL_DB = {
-  companyProfile: {
-    name: "Acme Corporation Pvt Ltd",
-    gstNumber: "22AAAAA0000A1Z5",
-    panNumber: "ABCDE1234F",
-    address: "Suite 101, Business Park, Tech Zone",
-    city: "Mumbai",
-    pincode: "400001",
-    state: "Maharashtra",
-    email: "billing@company.com",
-    phone: "+91 98765 43210",
-    bankName: "HDFC Bank",
-    accountNumber: "50200012345678",
-    ifscCode: "HDFC0001234",
-    logoUrl: "https://lh3.googleusercontent.com/aida-public/AB6AXuCPW3EceoldRDNKHXhXbK0aGi6nD__kFN-wUrcGj5YS09Bt7cUvMv1Pe6zBeFURZrIU514uVzWj6MY3nWr9g4L73M8mrlAA1-sTN2AiyfkQ_esWu3sf-SAvgGiwiOJKrEYj7jrKuUdt8j6jXXsbyj0g7tEXc877fs3yVTqXo15vcaUqlziZ6L9vciQmi2vU0fu7Iw4p85xc4nj14Un1OoDNDB16outMrTPalbUXz0h0xoh43iFbJZktJNJia0tyjVq80mecpICV-K_f"
-  },
-  customers: [
-    {
-      id: "cust-1",
-      name: "Tata Motors Logistics",
-      gstNumber: "27AAACT1234A1Z9",
-      email: "procurement@tatamotors.com",
-      phone: "+91 91234 56789",
-      address: "Pimpri Industrial Area, Sector 5",
-      city: "Pune",
-      state: "Maharashtra",
-      pincode: "411018"
-    },
-    {
-      id: "cust-2",
-      name: "Reliance Retail Ltd",
-      gstNumber: "22AAACR5678F1ZC",
-      email: "finance@relianceretail.com",
-      phone: "+91 98111 22233",
-      address: "Reliance Corporate Park, Ghansoli",
-      city: "Navi Mumbai",
-      state: "Maharashtra",
-      pincode: "400701"
-    },
-    {
-      id: "cust-3",
-      name: "Infosys Technologies Ltd",
-      gstNumber: "29AAACI9911D1ZX",
-      email: "vendor-bills@infosys.com",
-      phone: "+91 80285 20261",
-      address: "Electronic City, Hosur Road",
-      city: "Bengaluru",
-      state: "Karnataka",
-      pincode: "560100"
-    },
-    {
-      id: "cust-4",
-      name: "Delhivery Express Solutions",
-      gstNumber: "07AAACD9090H1ZN",
-      email: "accounts@delhivery.com",
-      phone: "+91 12467 19500",
-      address: "Sector 44, Plot 5",
-      city: "Gurugram",
-      state: "Delhi",
-      pincode: "122003"
-    }
-  ],
-  products: [
-    {
-      id: "prod-1",
-      name: "Heavy Duty Leaf Springs (Set of 4)",
-      hsnCode: "73201011",
-      price: 18500,
-      unit: "SET",
-      gstRate: 18
-    },
-    {
-      id: "prod-2",
-      name: "Automotive Suspension Shock Absorber",
-      hsnCode: "87088000",
-      price: 4200,
-      unit: "PCS",
-      gstRate: 18
-    },
-    {
-      id: "prod-3",
-      name: "Eco-Grade Biodegradable Hydraulic Fluid 5L",
-      hsnCode: "38112100",
-      price: 2450,
-      unit: "NOS",
-      gstRate: 12
-    },
-    {
-      id: "prod-4",
-      name: "Steel Fastener Bolts (Box of 500)",
-      hsnCode: "73181500",
-      price: 1100,
-      unit: "BOX",
-      gstRate: 18
-    },
-    {
-      id: "prod-5",
-      name: "Heavy Transport Wheel Gaskets (Silicon)",
-      hsnCode: "40169300",
-      price: 320,
-      unit: "PCS",
-      gstRate: 5
-    },
-    {
-      id: "prod-6",
-      name: "Solar Array Charger Controller 40A",
-      hsnCode: "85044090",
-      price: 8900,
-      unit: "NOS",
-      gstRate: 5
-    }
-  ],
-  invoices: [
-    {
-      id: "inv-1001",
-      invoiceNumber: "EBT/24-25/1001",
-      date: "2026-05-15",
-      dueDate: "2026-06-15",
-      customerId: "cust-1",
-      customerName: "Tata Motors Logistics",
-      customerGst: "27AAACT1234A1Z9",
-      customerState: "Maharashtra",
-      items: [
-        {
-          productId: "prod-1",
-          productName: "Heavy Duty Leaf Springs (Set of 4)",
-          hsnCode: "73201011",
-          price: 18500,
-          qty: 10,
-          unit: "SET",
-          gstRate: 18,
-          taxableValue: 185000,
-          cgstAmount: 16650,
-          sgstAmount: 16650,
-          igstAmount: 0,
-          total: 218300
-        },
-        {
-          productId: "prod-2",
-          productName: "Automotive Suspension Shock Absorber",
-          hsnCode: "87088000",
-          price: 4200,
-          qty: 20,
-          unit: "PCS",
-          gstRate: 18,
-          taxableValue: 84000,
-          cgstAmount: 7560,
-          sgstAmount: 7560,
-          igstAmount: 0,
-          total: 99120
-        }
-      ],
-      totalTaxable: 269000,
-      totalCgst: 24210,
-      totalSgst: 24210,
-      totalIgst: 0,
-      totalAmount: 317420,
-      status: "Paid"
-    },
-    {
-      id: "inv-1002",
-      invoiceNumber: "EBT/24-25/1002",
-      date: "2026-05-28",
-      dueDate: "2026-06-28",
-      customerId: "cust-3",
-      customerName: "Infosys Technologies Ltd",
-      customerGst: "29AAACI9911D1ZX",
-      customerState: "Karnataka",
-      items: [
-        {
-          productId: "prod-6",
-          productName: "Solar Array Charger Controller 40A",
-          hsnCode: "85044090",
-          price: 8900,
-          qty: 15,
-          unit: "NOS",
-          gstRate: 5,
-          taxableValue: 133500,
-          cgstAmount: 0,
-          sgstAmount: 0,
-          igstAmount: 6675,
-          total: 140175
-        }
-      ],
-      totalTaxable: 133500,
-      totalCgst: 0,
-      totalSgst: 0,
-      totalIgst: 6675,
-      totalAmount: 140175,
-      status: "Pending"
-    },
-    {
-      id: "inv-1003",
-      invoiceNumber: "EBT/24-25/1003",
-      date: "2026-06-02",
-      dueDate: "2026-07-02",
-      customerId: "cust-2",
-      customerName: "Reliance Retail Ltd",
-      customerGst: "22AAACR5678F1ZC",
-      customerState: "Maharashtra",
-      items: [
-        {
-          productId: "prod-3",
-          productName: "Eco-Grade Biodegradable Hydraulic Fluid 5L",
-          hsnCode: "38112100",
-          price: 2450,
-          qty: 50,
-          unit: "NOS",
-          gstRate: 12,
-          taxableValue: 122500,
-          cgstAmount: 7350,
-          sgstAmount: 7350,
-          igstAmount: 0,
-          total: 137200
-        },
-        {
-          productId: "prod-5",
-          productName: "Heavy Transport Wheel Gaskets (Silicon)",
-          hsnCode: "40169300",
-          price: 320,
-          qty: 100,
-          unit: "PCS",
-          gstRate: 5,
-          taxableValue: 32000,
-          cgstAmount: 800,
-          sgstAmount: 800,
-          igstAmount: 0,
-          total: 33600
-        }
-      ],
-      totalTaxable: 154500,
-      totalCgst: 8150,
-      totalSgst: 8150,
-      totalIgst: 0,
-      totalAmount: 170800,
-      status: "Draft"
-    }
-  ],
-  challans: [
-    {
-      id: "ch-501",
-      challanNumber: "EBT-CH-501",
-      date: "2026-05-10",
-      customerId: "cust-1",
-      customerName: "Tata Motors Logistics",
-      items: [
-        { productName: "Heavy Duty Leaf Springs (Set of 4)", qty: 8, unit: "SET" },
-        { productName: "Automotive Suspension Shock Absorber", qty: 15, unit: "PCS" }
-      ],
-      purpose: "Sent for Quality Approval / Trail Testing",
-      status: "Returned"
-    },
-    {
-      id: "ch-502",
-      challanNumber: "EBT-CH-502",
-      date: "2026-05-24",
-      customerId: "cust-3",
-      customerName: "Infosys Technologies Ltd",
-      items: [
-        { productName: "Solar Array Charger Controller 40A", qty: 25, unit: "NOS" }
-      ],
-      purpose: "Delivery on Approval Basis",
-      status: "Invoiced"
-    },
-    {
-      id: "ch-503",
-      challanNumber: "EBT-CH-503",
-      date: "2026-06-03",
-      customerId: "cust-4",
-      customerName: "Delhivery Express Solutions",
-      items: [
-        { productName: "Heavy Transport Wheel Gaskets (Silicon)", qty: 300, unit: "PCS" }
-      ],
-      purpose: "Stock Transfer to Logistics Hub",
-      status: "Pending"
-    }
-  ],
-  ewayBills: [
-    {
-      id: "ewb-201",
-      ewayBillNumber: "221948271039",
-      invoiceId: "inv-1001",
-      invoiceNumber: "EBT/24-25/1001",
-      vehicleNumber: "MH-12-PQ-9876",
-      transporterName: "VRL Logistics Ltd",
-      distanceKm: 145,
-      status: "Active",
-      validUntil: "2026-06-10"
-    },
-    {
-      id: "ewb-202",
-      ewayBillNumber: "298711029384",
-      invoiceId: "inv-1002",
-      invoiceNumber: "EBT/24-25/1002",
-      vehicleNumber: "KA-03-MY-4122",
-      transporterName: "Safexpress Transport",
-      distanceKm: 980,
-      status: "Expired",
-      validUntil: "2026-05-31"
-    }
-  ],
-  users: [
-    {
-      id: "user-1",
-      ownerName: "Admin User",
-      companyName: "Acme Corporation Pvt Ltd",
-      email: "admin@ebilltree.com",
-      password: "admin123",
-      phone: "+91 98765 43210",
-      gstNumber: "22AAAAA0000A1Z5",
-      address: "Suite 101, Business Park, Tech Zone",
-      registeredAt: "2026-01-01T00:00:00.000Z"
-    }
-  ]
-};
-
-// ─── Database helpers ──────────────────────────────────────────────────────
-function readDatabase() {
-  try {
-    if (!fs.existsSync(DB_FILE_PATH)) {
-      fs.writeFileSync(DB_FILE_PATH, JSON.stringify(INITIAL_DB, null, 2), "utf-8");
-      log.info("Database initialized with default data");
-      return INITIAL_DB;
-    }
-    const raw = fs.readFileSync(DB_FILE_PATH, "utf-8");
-    return JSON.parse(raw);
-  } catch (error) {
-    log.error("Failed to read database, returning defaults", error);
-    return INITIAL_DB;
-  }
-}
-
-function writeDatabase(data: typeof INITIAL_DB) {
-  try {
-    fs.writeFileSync(DB_FILE_PATH, JSON.stringify(data, null, 2), "utf-8");
-    return true;
-  } catch (error) {
-    log.error("Failed to write database", error);
-    return false;
-  }
-}
-
-// ─── Validation helpers ────────────────────────────────────────────────────
+// ─── Validation helper ──────────────────────────────────────────────────────
 function validateRequired(body: Record<string, unknown>, fields: string[]): string | null {
   for (const field of fields) {
     if (!body[field] || (typeof body[field] === "string" && (body[field] as string).trim() === "")) {
@@ -366,12 +34,12 @@ function validateRequired(body: Record<string, unknown>, fields: string[]): stri
   return null;
 }
 
-// ─── Server bootstrap ──────────────────────────────────────────────────────
+// ─── Server bootstrap ───────────────────────────────────────────────────────
 async function startServer() {
   const app = express();
   const PORT = Number(process.env.PORT) || 3000;
 
-  // ─── Global middleware ───────────────────────────────────────────────────
+  // ─── Global middleware ────────────────────────────────────────────────────
   app.use(express.json({ limit: "10mb" }));
   app.use(express.urlencoded({ extended: true }));
 
@@ -392,52 +60,68 @@ async function startServer() {
     next();
   });
 
-  // Ensure database is initialized
-  readDatabase();
-
-  // API 1: Return entire compiled database in one call
-  app.get("/api/db", (req, res) => {
+  // ═══════════════════════════════════════════════════════════════════════════
+  // API: Return entire database in one call (for frontend initial load)
+  // ═══════════════════════════════════════════════════════════════════════════
+  app.get("/api/db", async (_req, res) => {
     try {
-      const db = readDatabase();
-      res.json(db);
+      const [companyProfile, customers, products, invoices, challans, ewayBills] = await Promise.all([
+        CompanyProfileRepo.get(),
+        CustomerRepo.getAll(),
+        ProductRepo.getAll(),
+        InvoiceRepo.getAll(),
+        ChallanRepo.getAll(),
+        EWayBillRepo.getAll(),
+      ]);
+
+      res.json({
+        companyProfile: companyProfile || {
+          name: "", gstNumber: "", panNumber: "", address: "", city: "", pincode: "",
+          state: "", email: "", phone: "", bankName: "", accountNumber: "", ifscCode: "", logoUrl: ""
+        },
+        customers,
+        products,
+        invoices,
+        challans,
+        ewayBills,
+      });
     } catch (e: any) {
       res.status(500).json({ error: e.message || "Failed to load database state." });
     }
   });
 
-  // API 2: Configure enterprise Company Profile details
-  app.post("/api/company-profile", (req, res) => {
+  // ═══════════════════════════════════════════════════════════════════════════
+  // API: Company Profile
+  // ═══════════════════════════════════════════════════════════════════════════
+  app.post("/api/company-profile", async (req, res) => {
     try {
       const err = validateRequired(req.body, ["name", "email"]);
       if (err) return res.status(400).json({ error: err });
 
-      const db = readDatabase();
-      db.companyProfile = { ...db.companyProfile, ...req.body };
-      writeDatabase(db);
-      log.info(`Company profile updated: ${db.companyProfile.name}`);
-      res.json({ success: true, companyProfile: db.companyProfile });
+      const profile = await CompanyProfileRepo.upsert(req.body);
+      log.info(`Company profile updated: ${req.body.name}`);
+      res.json({ success: true, companyProfile: profile });
     } catch (e: any) {
       res.status(500).json({ error: e.message || "Failed to update company profile." });
     }
   });
 
+  // ═══════════════════════════════════════════════════════════════════════════
   // API: Authentication endpoints
+  // ═══════════════════════════════════════════════════════════════════════════
+
   // Register new user
-  app.post("/api/auth/register", (req, res) => {
+  app.post("/api/auth/register", async (req, res) => {
     try {
       const err = validateRequired(req.body, ["ownerName", "companyName", "email", "password"]);
       if (err) return res.status(400).json({ error: err });
 
-      const db = readDatabase();
-      if (!db.users) db.users = [];
-
-      // Check if user already exists
-      const existing = db.users.find((u: any) => u.email === req.body.email);
+      const existing = await UserRepo.findByEmail(req.body.email);
       if (existing) {
         return res.status(409).json({ error: "User with this email already exists" });
       }
 
-      const newUser = {
+      const newUser = await UserRepo.create({
         id: "user-" + Date.now(),
         ownerName: req.body.ownerName,
         companyName: req.body.companyName,
@@ -447,17 +131,13 @@ async function startServer() {
         gstNumber: req.body.gstNumber || "",
         address: req.body.address || "",
         registeredAt: new Date().toISOString(),
-      };
-      db.users.push(newUser);
-      writeDatabase(db);
-      log.info(`User registered: ${newUser.ownerName} (${newUser.email})`);
+      });
 
       // Generate OTP for verification
       const otp = String(Math.floor(100000 + Math.random() * 900000));
-      if (!db._otpStore) db._otpStore = {};
-      db._otpStore[newUser.email] = { otp, expiresAt: Date.now() + 600000 };
-      writeDatabase(db);
+      await OtpRepo.create(req.body.email, otp, Date.now() + 600000);
 
+      log.info(`User registered: ${req.body.ownerName} (${req.body.email})`);
       res.status(201).json({
         success: true,
         userId: newUser.id,
@@ -471,16 +151,13 @@ async function startServer() {
   });
 
   // Login
-  app.post("/api/auth/login", (req, res) => {
+  app.post("/api/auth/login", async (req, res) => {
     try {
       const err = validateRequired(req.body, ["email", "password"]);
       if (err) return res.status(400).json({ error: err });
 
-      const db = readDatabase();
-      if (!db.users) db.users = [];
-
-      const user = db.users.find((u: any) => u.email === req.body.email && u.password === req.body.password);
-      if (!user) {
+      const user = await UserRepo.findByEmail(req.body.email) as any;
+      if (!user || user.password !== req.body.password) {
         return res.status(401).json({ error: "Invalid email or password" });
       }
 
@@ -498,23 +175,18 @@ async function startServer() {
   });
 
   // Forgot password - send OTP
-  app.post("/api/auth/forgot-password", (req, res) => {
+  app.post("/api/auth/forgot-password", async (req, res) => {
     try {
       const err = validateRequired(req.body, ["email"]);
       if (err) return res.status(400).json({ error: err });
 
-      const db = readDatabase();
-      if (!db.users) db.users = [];
-
-      const user = db.users.find((u: any) => u.email === req.body.email);
+      const user = await UserRepo.findByEmail(req.body.email);
       if (!user) {
         return res.status(404).json({ error: "No account found with this email" });
       }
 
       const otp = String(Math.floor(100000 + Math.random() * 900000));
-      if (!db._otpStore) db._otpStore = {};
-      db._otpStore[req.body.email] = { otp, expiresAt: Date.now() + 600000 };
-      writeDatabase(db);
+      await OtpRepo.create(req.body.email, otp, Date.now() + 600000);
 
       log.info(`OTP generated for: ${req.body.email}`);
       res.json({ success: true, email: req.body.email, otp, message: "OTP sent successfully" });
@@ -524,27 +196,16 @@ async function startServer() {
   });
 
   // Verify OTP
-  app.post("/api/auth/verify-otp", (req, res) => {
+  app.post("/api/auth/verify-otp", async (req, res) => {
     try {
       const err = validateRequired(req.body, ["email", "otp"]);
       if (err) return res.status(400).json({ error: err });
 
-      const db = readDatabase();
-      const otpData = db._otpStore?.[req.body.email];
-      if (!otpData) {
-        return res.status(400).json({ error: "No OTP found for this email" });
-      }
-      if (otpData.expiresAt < Date.now()) {
-        delete db._otpStore[req.body.email];
-        writeDatabase(db);
-        return res.status(400).json({ error: "OTP has expired" });
-      }
-      if (otpData.otp !== req.body.otp) {
-        return res.status(400).json({ error: "Invalid OTP" });
+      const result = await OtpRepo.verify(req.body.email, req.body.otp);
+      if (!result.valid) {
+        return res.status(400).json({ error: result.reason });
       }
 
-      delete db._otpStore[req.body.email];
-      writeDatabase(db);
       log.info(`OTP verified for: ${req.body.email}`);
       res.json({ success: true, message: "OTP verified successfully" });
     } catch (e: any) {
@@ -553,21 +214,17 @@ async function startServer() {
   });
 
   // Reset password
-  app.post("/api/auth/reset-password", (req, res) => {
+  app.post("/api/auth/reset-password", async (req, res) => {
     try {
       const err = validateRequired(req.body, ["email", "password"]);
       if (err) return res.status(400).json({ error: err });
 
-      const db = readDatabase();
-      if (!db.users) db.users = [];
-
-      const userIdx = db.users.findIndex((u: any) => u.email === req.body.email);
-      if (userIdx === -1) {
+      const user = await UserRepo.findByEmail(req.body.email);
+      if (!user) {
         return res.status(404).json({ error: "User not found" });
       }
 
-      db.users[userIdx].password = req.body.password;
-      writeDatabase(db);
+      await UserRepo.updatePassword(req.body.email, req.body.password);
       log.info(`Password reset for: ${req.body.email}`);
       res.json({ success: true, message: "Password reset successfully" });
     } catch (e: any) {
@@ -575,41 +232,27 @@ async function startServer() {
     }
   });
 
-  // API: Update user profile
-  app.put("/api/users/:id", (req, res) => {
+  // ═══════════════════════════════════════════════════════════════════════════
+  // API: User Profile
+  // ═══════════════════════════════════════════════════════════════════════════
+  app.put("/api/users/:id", async (req, res) => {
     try {
-      const db = readDatabase();
-      if (!db.users) db.users = [];
-
       const { id } = req.params;
-      const userIdx = db.users.findIndex((u: any) => u.id === id);
-      if (userIdx === -1) {
-        return res.status(404).json({ error: "User not found" });
-      }
+      const updated = await UserRepo.update(id, req.body);
+      if (!updated) return res.status(404).json({ error: "User not found" });
 
-      // Don't allow changing password or email via this endpoint
-      const { password, ...updateData } = req.body;
-      db.users[userIdx] = { ...db.users[userIdx], ...updateData };
-      writeDatabase(db);
-
-      const { password: _, ...safeUser } = db.users[userIdx];
-      log.info(`User profile updated: ${db.users[userIdx].ownerName} (${id})`);
+      const { password: _, ...safeUser } = updated as any;
+      log.info(`User profile updated: ${(updated as any).ownerName} (${id})`);
       res.json({ success: true, user: safeUser });
     } catch (e: any) {
       res.status(500).json({ error: e.message || "Failed to update user profile." });
     }
   });
-  // API: Get user profile by ID
-  app.get("/api/users/:id", (req, res) => {
-    try {
-      const db = readDatabase();
-      if (!db.users) db.users = [];
 
-      const { id } = req.params;
-      const user = db.users.find((u: any) => u.id === id);
-      if (!user) {
-        return res.status(404).json({ error: "User not found" });
-      }
+  app.get("/api/users/:id", async (req, res) => {
+    try {
+      const user = await UserRepo.findById(req.params.id) as any;
+      if (!user) return res.status(404).json({ error: "User not found" });
 
       const { password: _, ...safeUser } = user;
       res.json(safeUser);
@@ -618,108 +261,84 @@ async function startServer() {
     }
   });
 
-  // API 3: Customers management
-  app.post("/api/customers", (req, res) => {
+  // ═══════════════════════════════════════════════════════════════════════════
+  // API: Customers CRUD
+  // ═══════════════════════════════════════════════════════════════════════════
+  app.post("/api/customers", async (req, res) => {
     try {
       const err = validateRequired(req.body, ["name", "email", "phone"]);
       if (err) return res.status(400).json({ error: err });
 
-      const db = readDatabase();
-      const newCustomer = { ...req.body };
-      if (!newCustomer.id) {
-        newCustomer.id = "cust-" + Date.now();
-      }
-      db.customers = [...db.customers.filter(c => c.id !== newCustomer.id), newCustomer];
-      writeDatabase(db);
-      log.info(`Customer saved: ${newCustomer.name} (${newCustomer.id})`);
-      res.status(201).json(newCustomer);
+      const customer = await CustomerRepo.upsert(req.body);
+      log.info(`Customer saved: ${req.body.name} (${customer.id})`);
+      res.status(201).json(customer);
     } catch (e: any) {
       res.status(500).json({ error: e.message || "Failed to add customer." });
     }
   });
 
-  // Update customer by ID
-  app.put("/api/customers/:id", (req, res) => {
+  app.put("/api/customers/:id", async (req, res) => {
     try {
-      const db = readDatabase();
-      const { id } = req.params;
-      const custIdx = db.customers.findIndex((c: any) => c.id === id);
-      if (custIdx === -1) {
-        return res.status(404).json({ error: "Customer not found" });
-      }
-      db.customers[custIdx] = { ...db.customers[custIdx], ...req.body, id };
-      writeDatabase(db);
-      log.info(`Customer updated: ${db.customers[custIdx].name} (${id})`);
-      res.json(db.customers[custIdx]);
+      const customer = await CustomerRepo.update(req.params.id, req.body);
+      if (!customer) return res.status(404).json({ error: "Customer not found" });
+
+      log.info(`Customer updated: ${(customer as any).name} (${req.params.id})`);
+      res.json(customer);
     } catch (e: any) {
       res.status(500).json({ error: e.message || "Failed to update customer." });
     }
   });
 
-  app.delete("/api/customers/:id", (req, res) => {
+  app.delete("/api/customers/:id", async (req, res) => {
     try {
-      const db = readDatabase();
-      const { id } = req.params;
-      db.customers = db.customers.filter(c => c.id !== id);
-      writeDatabase(db);
+      await CustomerRepo.delete(req.params.id);
       res.json({ success: true });
     } catch (e: any) {
       res.status(500).json({ error: e.message || "Failed to delete customer." });
     }
   });
 
-  // API 4: Stock catalogue/products management
-  app.post("/api/products", (req, res) => {
+  // ═══════════════════════════════════════════════════════════════════════════
+  // API: Products CRUD
+  // ═══════════════════════════════════════════════════════════════════════════
+  app.post("/api/products", async (req, res) => {
     try {
       const err = validateRequired(req.body, ["name", "hsnCode", "price"]);
       if (err) return res.status(400).json({ error: err });
 
-      const db = readDatabase();
-      const newProduct = { ...req.body };
-      if (!newProduct.id) {
-        newProduct.id = "prod-" + Date.now();
-      }
-      db.products = [...db.products.filter(p => p.id !== newProduct.id), newProduct];
-      writeDatabase(db);
-      log.info(`Product saved: ${newProduct.name} (${newProduct.id})`);
-      res.status(201).json(newProduct);
+      const product = await ProductRepo.upsert(req.body);
+      log.info(`Product saved: ${req.body.name} (${product.id})`);
+      res.status(201).json(product);
     } catch (e: any) {
       res.status(500).json({ error: e.message || "Failed to add product." });
     }
   });
 
-  // Update product by ID
-  app.put("/api/products/:id", (req, res) => {
+  app.put("/api/products/:id", async (req, res) => {
     try {
-      const db = readDatabase();
-      const { id } = req.params;
-      const prodIdx = db.products.findIndex((p: any) => p.id === id);
-      if (prodIdx === -1) {
-        return res.status(404).json({ error: "Product not found" });
-      }
-      db.products[prodIdx] = { ...db.products[prodIdx], ...req.body, id };
-      writeDatabase(db);
-      log.info(`Product updated: ${db.products[prodIdx].name} (${id})`);
-      res.json(db.products[prodIdx]);
+      const product = await ProductRepo.update(req.params.id, req.body);
+      if (!product) return res.status(404).json({ error: "Product not found" });
+
+      log.info(`Product updated: ${(product as any).name} (${req.params.id})`);
+      res.json(product);
     } catch (e: any) {
       res.status(500).json({ error: e.message || "Failed to update product." });
     }
   });
 
-  app.delete("/api/products/:id", (req, res) => {
+  app.delete("/api/products/:id", async (req, res) => {
     try {
-      const db = readDatabase();
-      const { id } = req.params;
-      db.products = db.products.filter(p => p.id !== id);
-      writeDatabase(db);
+      await ProductRepo.delete(req.params.id);
       res.json({ success: true });
     } catch (e: any) {
       res.status(500).json({ error: e.message || "Failed to delete product." });
     }
   });
 
-  // API 5: Tax Invoices endpoints
-  app.post("/api/invoices", (req, res) => {
+  // ═══════════════════════════════════════════════════════════════════════════
+  // API: Invoices CRUD
+  // ═══════════════════════════════════════════════════════════════════════════
+  app.post("/api/invoices", async (req, res) => {
     try {
       const err = validateRequired(req.body, ["customerId", "customerName", "items"]);
       if (err) return res.status(400).json({ error: err });
@@ -727,67 +346,49 @@ async function startServer() {
         return res.status(400).json({ error: "Invoice must contain at least one item" });
       }
 
-      const db = readDatabase();
-      const newInvoice = { ...req.body };
-      if (!newInvoice.id) {
-        newInvoice.id = "inv-" + Date.now();
-      }
-      db.invoices = [...db.invoices.filter(i => i.id !== newInvoice.id), newInvoice];
-      writeDatabase(db);
-      log.info(`Invoice saved: ${newInvoice.invoiceNumber} (${newInvoice.id})`);
-      res.status(201).json(newInvoice);
+      const invoice = await InvoiceRepo.upsert(req.body);
+      log.info(`Invoice saved: ${req.body.invoiceNumber} (${invoice.id})`);
+      res.status(201).json(invoice);
     } catch (e: any) {
       res.status(500).json({ error: e.message || "Failed to create invoice." });
     }
   });
 
-  app.delete("/api/invoices/:id", (req, res) => {
+  app.put("/api/invoices/:id", async (req, res) => {
     try {
-      const db = readDatabase();
-      const { id } = req.params;
-      db.invoices = db.invoices.filter(i => i.id !== id);
-      // Clean up orphaned waybills linked to deleted invoice
-      db.ewayBills = db.ewayBills.filter(ew => ew.invoiceId !== id);
-      writeDatabase(db);
-      res.json({ success: true });
-    } catch (e: any) {
-      res.status(500).json({ error: e.message || "Failed to delete invoice." });
-    }
-  });
+      const invoice = await InvoiceRepo.update(req.params.id, req.body);
+      if (!invoice) return res.status(404).json({ error: "Invoice not found" });
 
-  // Full invoice update by ID
-  app.put("/api/invoices/:id", (req, res) => {
-    try {
-      const db = readDatabase();
-      const { id } = req.params;
-      const invIdx = db.invoices.findIndex((i: any) => i.id === id);
-      if (invIdx === -1) {
-        return res.status(404).json({ error: "Invoice not found" });
-      }
-      db.invoices[invIdx] = { ...db.invoices[invIdx], ...req.body, id };
-      writeDatabase(db);
-      log.info(`Invoice updated: ${db.invoices[invIdx].invoiceNumber} (${id})`);
-      res.json(db.invoices[invIdx]);
+      log.info(`Invoice updated: ${(invoice as any).invoiceNumber} (${req.params.id})`);
+      res.json(invoice);
     } catch (e: any) {
       res.status(500).json({ error: e.message || "Failed to update invoice." });
     }
   });
 
-  app.put("/api/invoices/:id/status", (req, res) => {
+  app.put("/api/invoices/:id/status", async (req, res) => {
     try {
-      const db = readDatabase();
-      const { id } = req.params;
       const { status } = req.body;
-      db.invoices = db.invoices.map(inv => inv.id === id ? { ...inv, status } : inv);
-      writeDatabase(db);
+      await InvoiceRepo.updateStatus(req.params.id, status);
       res.json({ success: true });
     } catch (e: any) {
       res.status(500).json({ error: e.message || "Failed to update status." });
     }
   });
 
-  // API 6: Delivery Challans 
-  app.post("/api/challans", (req, res) => {
+  app.delete("/api/invoices/:id", async (req, res) => {
+    try {
+      await InvoiceRepo.delete(req.params.id);
+      res.json({ success: true });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message || "Failed to delete invoice." });
+    }
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // API: Challans CRUD
+  // ═══════════════════════════════════════════════════════════════════════════
+  app.post("/api/challans", async (req, res) => {
     try {
       const err = validateRequired(req.body, ["customerId", "customerName", "items"]);
       if (err) return res.status(400).json({ error: err });
@@ -795,117 +396,93 @@ async function startServer() {
         return res.status(400).json({ error: "Challan must contain at least one item" });
       }
 
-      const db = readDatabase();
-      const newChallan = { ...req.body };
-      if (!newChallan.id) {
-        newChallan.id = "ch-" + Date.now();
-      }
-      if (!newChallan.challanNumber) {
-        newChallan.challanNumber = "EBT-CH-" + Date.now().toString().slice(-6);
-      }
-      db.challans = [...db.challans.filter(ch => ch.id !== newChallan.id), newChallan];
-      writeDatabase(db);
-      log.info(`Challan saved: ${newChallan.challanNumber} (${newChallan.id})`);
-      res.status(201).json(newChallan);
+      const challan = await ChallanRepo.upsert(req.body);
+      log.info(`Challan saved: ${(challan as any).challanNumber} (${challan.id})`);
+      res.status(201).json(challan);
     } catch (e: any) {
       res.status(500).json({ error: e.message || "Failed to create challan." });
     }
   });
 
-  // Update challan by ID
-  app.put("/api/challans/:id", (req, res) => {
+  app.put("/api/challans/:id", async (req, res) => {
     try {
-      const db = readDatabase();
-      const { id } = req.params;
-      const chIdx = db.challans.findIndex((ch: any) => ch.id === id);
-      if (chIdx === -1) {
-        return res.status(404).json({ error: "Challan not found" });
-      }
-      db.challans[chIdx] = { ...db.challans[chIdx], ...req.body, id };
-      writeDatabase(db);
-      log.info(`Challan updated: ${db.challans[chIdx].challanNumber} (${id})`);
-      res.json(db.challans[chIdx]);
+      const challan = await ChallanRepo.update(req.params.id, req.body);
+      if (!challan) return res.status(404).json({ error: "Challan not found" });
+
+      log.info(`Challan updated: ${(challan as any).challanNumber} (${req.params.id})`);
+      res.json(challan);
     } catch (e: any) {
       res.status(500).json({ error: e.message || "Failed to update challan." });
     }
   });
 
-  app.delete("/api/challans/:id", (req, res) => {
+  app.delete("/api/challans/:id", async (req, res) => {
     try {
-      const db = readDatabase();
-      const { id } = req.params;
-      db.challans = db.challans.filter(ch => ch.id !== id);
-      writeDatabase(db);
+      await ChallanRepo.delete(req.params.id);
       res.json({ success: true });
     } catch (e: any) {
       res.status(500).json({ error: e.message || "Failed to delete challan." });
     }
   });
 
-  // API 7: Transporter eWayBills
-  app.post("/api/eway-bills", (req, res) => {
+  // ═══════════════════════════════════════════════════════════════════════════
+  // API: E-Way Bills CRUD
+  // ═══════════════════════════════════════════════════════════════════════════
+  app.post("/api/eway-bills", async (req, res) => {
     try {
       const err = validateRequired(req.body, ["invoiceId", "invoiceNumber", "vehicleNumber", "transporterName"]);
       if (err) return res.status(400).json({ error: err });
 
-      const db = readDatabase();
-      const newEWayBill = { ...req.body };
-      if (!newEWayBill.id) {
-        newEWayBill.id = "ewb-" + Date.now();
-      }
-      if (!newEWayBill.ewayBillNumber) {
-        newEWayBill.ewayBillNumber = String(Math.floor(Math.random() * 900000000000) + 100000000000);
-      }
-      if (!newEWayBill.validUntil) {
-        const validDate = new Date();
-        validDate.setDate(validDate.getDate() + 7);
-        newEWayBill.validUntil = validDate.toISOString().split("T")[0];
-      }
-      if (!newEWayBill.status) {
-        newEWayBill.status = "Active";
-      }
-      db.ewayBills = [...db.ewayBills.filter(ew => ew.id !== newEWayBill.id), newEWayBill];
-      writeDatabase(db);
-      log.info(`E-Way Bill saved: ${newEWayBill.ewayBillNumber} (${newEWayBill.id})`);
-      res.status(201).json(newEWayBill);
+      const ewayBill = await EWayBillRepo.upsert(req.body);
+      log.info(`E-Way Bill saved: ${(ewayBill as any).ewayBillNumber} (${ewayBill.id})`);
+      res.status(201).json(ewayBill);
     } catch (e: any) {
       res.status(500).json({ error: e.message || "Failed to save e-way bill." });
     }
   });
 
-  // Update e-way bill by ID
-  app.put("/api/eway-bills/:id", (req, res) => {
+  app.put("/api/eway-bills/:id", async (req, res) => {
     try {
-      const db = readDatabase();
-      const { id } = req.params;
-      const ewIdx = db.ewayBills.findIndex((ew: any) => ew.id === id);
-      if (ewIdx === -1) {
-        return res.status(404).json({ error: "E-Way Bill not found" });
-      }
-      db.ewayBills[ewIdx] = { ...db.ewayBills[ewIdx], ...req.body, id };
-      writeDatabase(db);
-      log.info(`E-Way Bill updated: ${db.ewayBills[ewIdx].ewayBillNumber} (${id})`);
-      res.json(db.ewayBills[ewIdx]);
+      const ewayBill = await EWayBillRepo.update(req.params.id, req.body);
+      if (!ewayBill) return res.status(404).json({ error: "E-Way Bill not found" });
+
+      log.info(`E-Way Bill updated: ${(ewayBill as any).ewayBillNumber} (${req.params.id})`);
+      res.json(ewayBill);
     } catch (e: any) {
       res.status(500).json({ error: e.message || "Failed to update e-way bill." });
     }
   });
 
-  app.delete("/api/eway-bills/:id", (req, res) => {
+  app.delete("/api/eway-bills/:id", async (req, res) => {
     try {
-      const db = readDatabase();
-      const { id } = req.params;
-      db.ewayBills = db.ewayBills.filter(ew => ew.id !== id);
-      writeDatabase(db);
+      await EWayBillRepo.delete(req.params.id);
       res.json({ success: true });
     } catch (e: any) {
       res.status(500).json({ error: e.message || "Failed to delete ewaybill." });
     }
   });
 
+  // ═══════════════════════════════════════════════════════════════════════════
   // API: Health check
-  app.get("/api/health", (_req, res) => {
-    res.json({ status: "ok", uptime: process.uptime(), timestamp: new Date().toISOString() });
+  // ═══════════════════════════════════════════════════════════════════════════
+  app.get("/api/health", async (_req, res) => {
+    try {
+      const { rows } = await pool.query("SELECT NOW() as time");
+      res.json({
+        status: "ok",
+        uptime: process.uptime(),
+        timestamp: new Date().toISOString(),
+        database: "connected",
+        dbTime: rows[0].time,
+      });
+    } catch {
+      res.json({
+        status: "degraded",
+        uptime: process.uptime(),
+        timestamp: new Date().toISOString(),
+        database: "disconnected",
+      });
+    }
   });
 
   // Global error handler
@@ -914,7 +491,7 @@ async function startServer() {
     res.status(500).json({ error: "Internal server error" });
   });
 
-  // Vite middle-layer orchestration or static build index asset serving
+  // ─── Vite middle-layer or static build serving ────────────────────────────
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -924,14 +501,33 @@ async function startServer() {
   } else {
     const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath));
-    app.get("*", (req, res) => {
+    app.get("*", (_req, res) => {
       res.sendFile(path.join(distPath, "index.html"));
     });
   }
 
+  // ─── Initialize DB then start listening ───────────────────────────────────
+  await initializeDatabase();
+
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`E-bill Tree backend server started securely on port ${PORT}`);
+    console.log(`Database: PostgreSQL at ${process.env.DATABASE_URL || "postgres://localhost:5432/ebilltree"}`);
   });
 }
 
-startServer();
+// ─── Graceful shutdown ──────────────────────────────────────────────────────
+process.on("SIGTERM", async () => {
+  console.log("[Server] SIGTERM received, shutting down gracefully...");
+  await pool.end();
+  process.exit(0);
+});
+process.on("SIGINT", async () => {
+  console.log("[Server] SIGINT received, closing connections...");
+  await pool.end();
+  process.exit(0);
+});
+
+startServer().catch((err) => {
+  console.error("[Server] Failed to start:", err);
+  process.exit(1);
+});
