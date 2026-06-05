@@ -1,6 +1,6 @@
 import { 
   Search, Plus, Receipt, FileText, CheckCircle, Clock, 
-  Trash2, Eye, Printer, ShoppingBag, Landmark, ArrowRight, X 
+  Trash2, Eye, Printer, ShoppingBag, Landmark, ArrowRight, X, Pencil
 } from 'lucide-react';
 import React, { useState } from 'react';
 import { Invoice, CompanyProfile, Customer, Product, InvoiceItem } from '../types';
@@ -11,6 +11,7 @@ interface InvoicesTabProps {
   customers: Customer[];
   products: Product[];
   onAddInvoice: (invoice: Invoice) => void;
+  onUpdateInvoice: (invoice: Invoice) => void;
   onDeleteInvoice: (id: string) => void;
   onUpdateInvoiceStatus: (id: string, status: Invoice['status']) => void;
 }
@@ -21,6 +22,7 @@ export default function InvoicesTab({
   customers,
   products,
   onAddInvoice,
+  onUpdateInvoice,
   onDeleteInvoice,
   onUpdateInvoiceStatus
 }: InvoicesTabProps) {
@@ -28,8 +30,10 @@ export default function InvoicesTab({
   const [statusFilter, setStatusFilter] = useState<string>('All');
   
   // Views
-  const [viewState, setViewState] = useState<'list' | 'create'>('list');
+  const [viewState, setViewState] = useState<'list' | 'create' | 'edit'>('list');
   const [viewingInvoice, setViewingInvoice] = useState<Invoice | null>(null);
+  const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   // Form states (Invoice Creator)
   const [customerId, setCustomerId] = useState('');
@@ -170,6 +174,88 @@ export default function InvoicesTab({
     return clientState.toLowerCase().trim() === companyProfile.state.toLowerCase().trim();
   };
 
+  // Edit invoice handlers
+  const handleEditClick = (inv: Invoice) => {
+    setEditingInvoice({ ...inv });
+    setViewState('edit');
+    // Pre-fill form fields
+    setCustomerId(inv.customerId);
+    setStatusFlag(inv.status);
+    setDueDateOffsetDays(
+      Math.max(1, Math.round((new Date(inv.dueDate).getTime() - new Date(inv.date).getTime()) / 86400000))
+    );
+    // Reconstruct selected items from invoice items
+    const reconstructed = inv.items.map(item => {
+      const prod = products.find(p => p.id === item.productId);
+      return {
+        product: prod || {
+          id: item.productId, name: item.productName, hsnCode: item.hsnCode,
+          price: item.price, gstRate: item.gstRate, unit: item.unit
+        } as Product,
+        qty: item.qty
+      };
+    });
+    setSelectedItems(reconstructed);
+  };
+
+  const handleEditSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingInvoice || !customerId) return;
+    if (selectedItems.length === 0) {
+      alert("Please add at least one item to the invoice!");
+      return;
+    }
+
+    const client = customers.find(c => c.id === customerId);
+    if (!client) return;
+
+    const isSameState = client.state.toLowerCase().trim() === companyProfile.state.toLowerCase().trim();
+    let totalTaxable = 0, totalCgst = 0, totalSgst = 0, totalIgst = 0;
+
+    const finalItems: InvoiceItem[] = selectedItems.map(({ product, qty }) => {
+      const taxableValue = product.price * qty;
+      let cgstAmount = 0, sgstAmount = 0, igstAmount = 0;
+      if (isSameState) {
+        cgstAmount = (taxableValue * product.gstRate) / 200;
+        sgstAmount = cgstAmount;
+      } else {
+        igstAmount = (taxableValue * product.gstRate) / 100;
+      }
+      totalTaxable += taxableValue;
+      totalCgst += cgstAmount;
+      totalSgst += sgstAmount;
+      totalIgst += igstAmount;
+      return {
+        productId: product.id, productName: product.name, hsnCode: product.hsnCode,
+        price: product.price, qty, unit: product.unit, gstRate: product.gstRate,
+        taxableValue, cgstAmount, sgstAmount, igstAmount,
+        total: taxableValue + cgstAmount + sgstAmount + igstAmount
+      };
+    });
+
+    const totalAmount = totalTaxable + totalCgst + totalSgst + totalIgst;
+    const due = new Date(editingInvoice.date);
+    due.setDate(due.getDate() + dueDateOffsetDays);
+
+    const updatedInvoice: Invoice = {
+      ...editingInvoice,
+      customerId: client.id,
+      customerName: client.name,
+      customerGst: client.gstNumber,
+      customerState: client.state,
+      items: finalItems,
+      totalTaxable, totalCgst, totalSgst, totalIgst, totalAmount,
+      status: statusFlag,
+      dueDate: due.toISOString().split('T')[0]
+    };
+
+    onUpdateInvoice(updatedInvoice);
+    setViewState('list');
+    setEditingInvoice(null);
+    setCustomerId('');
+    setSelectedItems([]);
+  };
+
   const handlePrint = () => {
     window.print();
   };
@@ -302,7 +388,7 @@ export default function InvoicesTab({
 
                           {/* Quick Actions Viewer */}
                           <td className="p-4 text-center">
-                            <div className="flex gap-2 justify-center items-center">
+                            <div className="flex gap-1.5 justify-center items-center">
                               <button 
                                 onClick={() => setViewingInvoice(inv)}
                                 className="p-1.5 hover:bg-zinc-100 text-[#00658d] hover:text-brand-secondary rounded-lg cursor-pointer"
@@ -310,9 +396,17 @@ export default function InvoicesTab({
                               >
                                 <Eye className="w-4 h-4" />
                               </button>
+
+                              <button 
+                                onClick={() => handleEditClick(inv)}
+                                className="p-1.5 hover:bg-amber-50 text-stone-400 hover:text-amber-600 rounded-lg cursor-pointer"
+                                title="Edit invoice"
+                              >
+                                <Pencil className="w-3.5 h-3.5" />
+                              </button>
                               
                               <button 
-                                onClick={() => onDeleteInvoice(inv.id)}
+                                onClick={() => setDeleteConfirmId(inv.id)}
                                 className="p-1.5 hover:bg-red-50 text-stone-400 hover:text-red-500 rounded-lg cursor-pointer"
                                 title="Delete statement"
                               >
@@ -330,8 +424,95 @@ export default function InvoicesTab({
             )}
           </div>
         </div>
+      ) : viewState === 'edit' && editingInvoice ? (
+        /* ---------------- INVOICE EDITOR VIEW FORM ---------------- */
+        <div id="invoice-editor-container" className="bg-stone-50 p-6 border border-stone-200 rounded-xl space-y-6">
+          <div className="flex items-center justify-between border-b border-stone-200/50 pb-4 select-none">
+            <div>
+              <h2 className="font-display text-lg font-extrabold text-brand-gray-dark">Edit Invoice — {editingInvoice.invoiceNumber}</h2>
+              <p className="text-[10px] text-stone-400">Update tax invoice details and recalculate GST.</p>
+            </div>
+            <button 
+              onClick={() => { setViewState('list'); setEditingInvoice(null); }}
+              className="px-4 py-2 hover:bg-stone-100 border border-stone-200 rounded-xl text-xs font-bold text-stone-600 cursor-pointer"
+            >
+              Cancel
+            </button>
+          </div>
+
+          <form onSubmit={handleEditSubmit} className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="space-y-1 md:col-span-2">
+                <label className="block text-xs font-semibold text-brand-gray-medium">Target Customer Billed *</label>
+                <select className="w-full px-4 py-2.5 rounded-xl border border-stone-200 bg-white text-xs" required value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
+                  <option value="">-- Choose Target Consignee --</option>
+                  {customers.map(c => <option key={c.id} value={c.id}>{c.name} ({c.state})</option>)}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="block text-xs font-semibold text-brand-gray-medium">Net Due Limit *</label>
+                <select className="w-full px-4 py-2.5 rounded-xl border border-stone-200 bg-white text-xs" value={dueDateOffsetDays} onChange={(e) => setDueDateOffsetDays(Number(e.target.value))}>
+                  <option value={15}>Net 15</option><option value={30}>Net 30</option><option value={45}>Net 45</option><option value={60}>Net 60</option>
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="block text-xs font-semibold text-brand-gray-medium">Status *</label>
+                <select className="w-full px-4 py-2.5 rounded-xl border border-stone-200 bg-white text-xs" value={statusFlag} onChange={(e) => setStatusFlag(e.target.value as any)}>
+                  <option value="Pending">Pending</option><option value="Paid">Paid</option><option value="Draft">Draft</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="p-4 bg-white border border-stone-200 rounded-xl space-y-4">
+              <h3 className="text-xs font-bold font-display text-brand-gray-dark flex items-center gap-1.5 uppercase tracking-wide">
+                <ShoppingBag className="w-4 h-4 text-brand-primary" /> Detail Entry Grid
+              </h3>
+              <div className="flex flex-col sm:flex-row gap-3 items-end">
+                <div className="flex-grow space-y-1">
+                  <label className="block text-[10px] font-bold text-stone-400 uppercase">Select Commodity Item</label>
+                  <select className="w-full px-3 py-2 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white text-xs" value={selectedProductVal} onChange={(e) => setSelectedProductVal(e.target.value)}>
+                    <option value="">-- Choose Stock Product Item --</option>
+                    {products.map(p => <option key={p.id} value={p.id}>{p.name} - ₹{p.price}/U ({p.gstRate}% GST)</option>)}
+                  </select>
+                </div>
+                <div className="w-24 space-y-1">
+                  <label className="block text-[10px] font-bold text-stone-400 uppercase">Qty</label>
+                  <input type="number" className="w-full px-3 py-2 rounded-xl border border-stone-200 text-xs text-center" min="1" value={productQty} onChange={(e) => setProductQty(Number(e.target.value))} />
+                </div>
+                <button type="button" onClick={handleAddProductRow} className="px-5 py-2.5 bg-brand-primary hover:bg-brand-primary-light text-white text-xs font-bold rounded-xl shadow cursor-pointer select-none">Add Row</button>
+              </div>
+              {selectedItems.length > 0 && (
+                <div className="border border-stone-100 rounded-lg overflow-hidden mt-3">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-[#fcfdfa] border-b border-stone-100 text-stone-500 font-bold uppercase text-[9px]">
+                      <tr><th className="p-3">Product / HSN</th><th className="p-3 text-right">Rate</th><th className="p-3 text-center">Qty</th><th className="p-3 text-right">Taxable</th><th className="p-3">GST</th><th className="p-3 text-center">Action</th></tr>
+                    </thead>
+                    <tbody className="divide-y divide-stone-100">
+                      {selectedItems.map((item, idx) => (
+                        <tr key={idx} className="hover:bg-stone-50/50">
+                          <td className="p-3"><p className="font-semibold text-brand-gray-dark">{item.product.name}</p><span className="text-[10px] text-[#00658d] font-mono">HSN: {item.product.hsnCode}</span></td>
+                          <td className="p-3 text-right font-mono font-bold text-stone-700">₹{item.product.price.toLocaleString('en-IN')}</td>
+                          <td className="p-3 text-center font-semibold text-stone-600">{item.qty} {item.product.unit}</td>
+                          <td className="p-3 text-right font-mono font-extrabold text-stone-800">₹{(item.product.price * item.qty).toLocaleString('en-IN')}</td>
+                          <td className="p-3"><span className="px-1.5 py-0.5 rounded text-[9.5px] font-bold bg-amber-50 text-amber-700">{item.product.gstRate}%</span></td>
+                          <td className="p-3 text-center"><button type="button" onClick={() => handleRemoveProductRow(idx)} className="p-1 hover:bg-red-50 text-stone-400 hover:text-red-500 rounded cursor-pointer"><X className="w-4 h-4" /></button></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            <div className="pt-4 flex justify-end gap-3 select-none">
+              <button type="button" onClick={() => { setViewState('list'); setEditingInvoice(null); }} className="px-6 py-2.5 border border-stone-200 hover:bg-stone-100 rounded-xl text-xs font-bold text-stone-600 cursor-pointer">Discard Changes</button>
+              <button type="submit" className="px-8 py-2.5 bg-[#3d6a00] hover:bg-brand-primary-light text-white font-extrabold text-xs rounded-xl shadow cursor-pointer flex items-center justify-center gap-2">
+                <span>Save Invoice</span><ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
+          </form>
+        </div>
       ) : (
-        
         /* ---------------- INVOICE GENERATOR VIEW FORM ---------------- */
         <div id="invoice-creator-container" className="bg-stone-50 p-6 border border-stone-200 rounded-xl space-y-6">
           <div className="flex items-center justify-between border-b border-stone-200/50 pb-4 select-none">
@@ -514,6 +695,25 @@ export default function InvoicesTab({
         </div>
       )}
 
+
+      {/* Delete Confirmation Dialog */}
+      {deleteConfirmId && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl shadow-lg border border-stone-200 w-full max-w-sm p-6 space-y-4 font-sans">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-red-50 rounded-full"><Trash2 className="w-5 h-5 text-red-500" /></div>
+              <div>
+                <h3 className="font-bold text-sm text-brand-gray-dark">Delete Invoice?</h3>
+                <p className="text-xs text-stone-500">This action cannot be undone.</p>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setDeleteConfirmId(null)} className="px-4 py-2 border border-stone-200 hover:bg-stone-50 rounded-xl text-xs font-bold cursor-pointer">Cancel</button>
+              <button onClick={() => { onDeleteInvoice(deleteConfirmId); setDeleteConfirmId(null); }} className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-xl text-xs font-bold cursor-pointer">Delete</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ---------------- GST PRINT TAX INVOICE MODAL SHEET ---------------- */}
       {viewingInvoice && (

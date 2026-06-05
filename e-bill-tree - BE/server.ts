@@ -638,6 +638,24 @@ async function startServer() {
     }
   });
 
+  // Update customer by ID
+  app.put("/api/customers/:id", (req, res) => {
+    try {
+      const db = readDatabase();
+      const { id } = req.params;
+      const custIdx = db.customers.findIndex((c: any) => c.id === id);
+      if (custIdx === -1) {
+        return res.status(404).json({ error: "Customer not found" });
+      }
+      db.customers[custIdx] = { ...db.customers[custIdx], ...req.body, id };
+      writeDatabase(db);
+      log.info(`Customer updated: ${db.customers[custIdx].name} (${id})`);
+      res.json(db.customers[custIdx]);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message || "Failed to update customer." });
+    }
+  });
+
   app.delete("/api/customers/:id", (req, res) => {
     try {
       const db = readDatabase();
@@ -667,6 +685,24 @@ async function startServer() {
       res.status(201).json(newProduct);
     } catch (e: any) {
       res.status(500).json({ error: e.message || "Failed to add product." });
+    }
+  });
+
+  // Update product by ID
+  app.put("/api/products/:id", (req, res) => {
+    try {
+      const db = readDatabase();
+      const { id } = req.params;
+      const prodIdx = db.products.findIndex((p: any) => p.id === id);
+      if (prodIdx === -1) {
+        return res.status(404).json({ error: "Product not found" });
+      }
+      db.products[prodIdx] = { ...db.products[prodIdx], ...req.body, id };
+      writeDatabase(db);
+      log.info(`Product updated: ${db.products[prodIdx].name} (${id})`);
+      res.json(db.products[prodIdx]);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message || "Failed to update product." });
     }
   });
 
@@ -719,6 +755,24 @@ async function startServer() {
     }
   });
 
+  // Full invoice update by ID
+  app.put("/api/invoices/:id", (req, res) => {
+    try {
+      const db = readDatabase();
+      const { id } = req.params;
+      const invIdx = db.invoices.findIndex((i: any) => i.id === id);
+      if (invIdx === -1) {
+        return res.status(404).json({ error: "Invoice not found" });
+      }
+      db.invoices[invIdx] = { ...db.invoices[invIdx], ...req.body, id };
+      writeDatabase(db);
+      log.info(`Invoice updated: ${db.invoices[invIdx].invoiceNumber} (${id})`);
+      res.json(db.invoices[invIdx]);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message || "Failed to update invoice." });
+    }
+  });
+
   app.put("/api/invoices/:id/status", (req, res) => {
     try {
       const db = readDatabase();
@@ -755,6 +809,24 @@ async function startServer() {
       res.status(201).json(newChallan);
     } catch (e: any) {
       res.status(500).json({ error: e.message || "Failed to create challan." });
+    }
+  });
+
+  // Update challan by ID
+  app.put("/api/challans/:id", (req, res) => {
+    try {
+      const db = readDatabase();
+      const { id } = req.params;
+      const chIdx = db.challans.findIndex((ch: any) => ch.id === id);
+      if (chIdx === -1) {
+        return res.status(404).json({ error: "Challan not found" });
+      }
+      db.challans[chIdx] = { ...db.challans[chIdx], ...req.body, id };
+      writeDatabase(db);
+      log.info(`Challan updated: ${db.challans[chIdx].challanNumber} (${id})`);
+      res.json(db.challans[chIdx]);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message || "Failed to update challan." });
     }
   });
 
@@ -798,6 +870,24 @@ async function startServer() {
       res.status(201).json(newEWayBill);
     } catch (e: any) {
       res.status(500).json({ error: e.message || "Failed to save e-way bill." });
+    }
+  });
+
+  // Update e-way bill by ID
+  app.put("/api/eway-bills/:id", (req, res) => {
+    try {
+      const db = readDatabase();
+      const { id } = req.params;
+      const ewIdx = db.ewayBills.findIndex((ew: any) => ew.id === id);
+      if (ewIdx === -1) {
+        return res.status(404).json({ error: "E-Way Bill not found" });
+      }
+      db.ewayBills[ewIdx] = { ...db.ewayBills[ewIdx], ...req.body, id };
+      writeDatabase(db);
+      log.info(`E-Way Bill updated: ${db.ewayBills[ewIdx].ewayBillNumber} (${id})`);
+      res.json(db.ewayBills[ewIdx]);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message || "Failed to update e-way bill." });
     }
   });
 

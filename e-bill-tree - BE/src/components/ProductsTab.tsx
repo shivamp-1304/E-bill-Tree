@@ -1,16 +1,19 @@
-import { Search, Plus, PackageOpen, Trash2, ShieldQuestion } from 'lucide-react';
+import { Search, Plus, PackageOpen, Trash2, ShieldQuestion, Pencil } from 'lucide-react';
 import React, { useState } from 'react';
 import { Product } from '../types';
 
 interface ProductsTabProps {
   products: Product[];
   onAddProduct: (product: Product) => void;
+  onUpdateProduct: (product: Product) => void;
   onDeleteProduct: (id: string) => void;
 }
 
-export default function ProductsTab({ products, onAddProduct, onDeleteProduct }: ProductsTabProps) {
+export default function ProductsTab({ products, onAddProduct, onUpdateProduct, onDeleteProduct }: ProductsTabProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   // Form states
   const [name, setName] = useState('');
@@ -49,6 +52,28 @@ export default function ProductsTab({ products, onAddProduct, onDeleteProduct }:
     setPrice(0);
     setUnit('PCS');
     setGstRate(18);
+  };
+
+  const handleEditClick = (prod: Product) => {
+    setEditingProduct(prod);
+  };
+
+  const handleEditSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingProduct) return;
+    if (!editingProduct.name || !editingProduct.hsnCode || editingProduct.price <= 0) {
+      alert('Please fill in all product specifications!');
+      return;
+    }
+    onUpdateProduct(editingProduct);
+    setEditingProduct(null);
+  };
+
+  const handleConfirmDelete = () => {
+    if (deleteConfirmId) {
+      onDeleteProduct(deleteConfirmId);
+      setDeleteConfirmId(null);
+    }
   };
 
   return (
@@ -139,13 +164,22 @@ export default function ProductsTab({ products, onAddProduct, onDeleteProduct }:
 
                     {/* Actions */}
                     <td className="p-4 text-center">
-                      <button 
-                        onClick={() => onDeleteProduct(p.id)}
-                        className="p-1.5 hover:bg-red-50 text-stone-400 hover:text-red-500 rounded-lg transition-colors cursor-pointer inline-flex"
-                        title="Delete product"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      <div className="flex gap-1.5 justify-center">
+                        <button 
+                          onClick={() => handleEditClick(p)}
+                          className="p-1.5 hover:bg-blue-50 text-stone-400 hover:text-blue-500 rounded-lg transition-colors cursor-pointer inline-flex"
+                          title="Edit product"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                        <button 
+                          onClick={() => setDeleteConfirmId(p.id)}
+                          className="p-1.5 hover:bg-red-50 text-stone-400 hover:text-red-500 rounded-lg transition-colors cursor-pointer inline-flex"
+                          title="Delete product"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </td>
 
                   </tr>
@@ -266,6 +300,70 @@ export default function ProductsTab({ products, onAddProduct, onDeleteProduct }:
               </div>
 
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Product Modal */}
+      {editingProduct && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl shadow-lg border border-stone-200 w-full max-w-sm overflow-hidden font-sans">
+            <div className="px-6 py-4 border-b border-stone-100 flex items-center justify-between bg-blue-50">
+              <h3 className="font-display font-extrabold text-sm text-brand-gray-dark flex items-center gap-2">
+                <Pencil className="w-4 h-4 text-blue-500" />
+                <span>Edit Product</span>
+              </h3>
+              <button onClick={() => setEditingProduct(null)} className="text-stone-400 hover:text-brand-gray-dark text-lg font-bold cursor-pointer">×</button>
+            </div>
+            <form onSubmit={handleEditSubmit} className="p-6 space-y-4">
+              <div className="space-y-1">
+                <label className="block text-xs font-semibold text-brand-gray-medium">Product Name *</label>
+                <input type="text" className="w-full px-3 py-2 border border-stone-200 rounded-xl text-xs focus:ring-1 focus:ring-blue-500 outline-none" required value={editingProduct.name} onChange={(e) => setEditingProduct({ ...editingProduct, name: e.target.value })} />
+              </div>
+              <div className="space-y-1">
+                <label className="block text-xs font-semibold text-brand-gray-medium">HSN Code *</label>
+                <input type="text" className="w-full px-3 py-2 border border-stone-200 rounded-xl text-xs font-mono outline-none focus:ring-1 focus:ring-blue-500" required value={editingProduct.hsnCode} onChange={(e) => setEditingProduct({ ...editingProduct, hsnCode: e.target.value })} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="block text-xs font-semibold text-brand-gray-medium">Price (₹) *</label>
+                  <input type="number" className="w-full px-3 py-2 border border-stone-200 rounded-xl text-xs font-mono outline-none focus:ring-1" min="1" required value={editingProduct.price || ''} onChange={(e) => setEditingProduct({ ...editingProduct, price: Number(e.target.value) })} />
+                </div>
+                <div className="space-y-1">
+                  <label className="block text-xs font-semibold text-brand-gray-medium">Unit *</label>
+                  <select className="w-full px-3 py-2 border border-stone-200 rounded-xl text-xs focus:ring-1" value={editingProduct.unit} onChange={(e) => setEditingProduct({ ...editingProduct, unit: e.target.value })}>
+                    <option value="PCS">PCS</option><option value="SET">SET</option><option value="NOS">NOS</option><option value="KG">KG</option><option value="BOX">BOX</option><option value="MTR">MTR</option>
+                  </select>
+                </div>
+              </div>
+              <div className="space-y-1">
+                <label className="block text-xs font-semibold text-brand-gray-medium">GST Rate *</label>
+                <select className="w-full px-3 py-2 border border-stone-200 rounded-xl text-xs focus:ring-1" value={editingProduct.gstRate} onChange={(e) => setEditingProduct({ ...editingProduct, gstRate: Number(e.target.value) })}>
+                  <option value={5}>5%</option><option value={12}>12%</option><option value={18}>18%</option><option value={28}>28%</option>
+                </select>
+              </div>
+              <div className="pt-2 flex justify-end gap-3">
+                <button type="button" onClick={() => setEditingProduct(null)} className="px-4 py-2 border border-stone-200 hover:bg-stone-50 rounded-xl text-xs font-bold cursor-pointer">Cancel</button>
+                <button type="submit" className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold cursor-pointer shadow">Update Product</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Dialog */}
+      {deleteConfirmId && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl shadow-lg border border-stone-200 w-full max-w-sm p-6 font-sans text-center space-y-4">
+            <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center mx-auto">
+              <Trash2 className="w-6 h-6 text-red-500" />
+            </div>
+            <h3 className="font-display font-extrabold text-base text-brand-gray-dark">Delete Product?</h3>
+            <p className="text-xs text-stone-500">This action cannot be undone. The product will be permanently removed from your catalogue.</p>
+            <div className="flex gap-3 justify-center pt-2">
+              <button onClick={() => setDeleteConfirmId(null)} className="px-5 py-2 border border-stone-200 hover:bg-stone-50 rounded-xl text-xs font-bold cursor-pointer">Cancel</button>
+              <button onClick={handleConfirmDelete} className="px-5 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold cursor-pointer shadow">Delete</button>
+            </div>
           </div>
         </div>
       )}

@@ -19,15 +19,20 @@ export default function ReportsTab({ invoices }: ReportsTabProps) {
   const draftInvoices = invoices.filter(inv => inv.status === 'Draft').length;
   const activeInvoices = invoices.filter(inv => inv.status === 'Paid' || inv.status === 'Pending').length;
 
-  // Let's configure custom mock monthly details for the SVG Chart representation
-  const monthlySales = [
-    { month: 'Jan', sales: totalTaxable * 0.4, tax: totalCgst * 0.4 },
-    { month: 'Feb', sales: totalTaxable * 0.6, tax: totalCgst * 0.6 },
-    { month: 'Mar', sales: totalTaxable * 0.8, tax: totalCgst * 0.8 },
-    { month: 'Apr', sales: totalTaxable * 0.7, tax: totalCgst * 0.7 },
-    { month: 'May', sales: totalTaxable * 1.1, tax: totalCgst * 1.1 },
-    { month: 'Jun', sales: totalTaxable, tax: totalTaxCollected }
-  ];
+  // Compute real monthly sales data from actual invoice dates
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const currentYear = new Date().getFullYear();
+
+  const monthlySales = Array.from({ length: 6 }, (_, i) => {
+    const monthIdx = i; // Jan–Jun of current year
+    const monthInvoices = invoices.filter(inv => {
+      const d = new Date(inv.date);
+      return d.getFullYear() === currentYear && d.getMonth() === monthIdx;
+    });
+    const sales = monthInvoices.reduce((s, inv) => s + inv.totalTaxable, 0);
+    const tax = monthInvoices.reduce((s, inv) => s + inv.totalCgst + inv.totalSgst + inv.totalIgst, 0);
+    return { month: monthNames[monthIdx], sales, tax };
+  });
 
   const maxSales = Math.max(...monthlySales.map(m => m.sales), 10000);
 
@@ -113,7 +118,7 @@ export default function ReportsTab({ invoices }: ReportsTabProps) {
           <div className="flex justify-between items-center mb-6">
             <div>
               <h3 className="font-display text-sm font-extrabold text-brand-gray-dark">GST Revenue &amp; Turnovers</h3>
-              <p className="text-[10px] text-stone-400">Monthly gross turnovers versus accumulated tax valuations</p>
+              <p className="text-[10px] text-stone-400">Monthly gross turnovers vs tax — {currentYear} (Jan–Jun)</p>
             </div>
             <div className="flex items-center gap-4 text-[10px] font-bold">
               <span className="inline-flex items-center gap-1.5 text-[#3d6a00]"><span className="w-2.5 h-2.5 rounded bg-[#3d6a00] inline-block"></span> Turnovers</span>

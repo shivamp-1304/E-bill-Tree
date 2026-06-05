@@ -1,4 +1,4 @@
-import { Search, Plus, Truck, AlertTriangle, CheckCircle, Trash2 } from 'lucide-react';
+import { Search, Plus, Truck, AlertTriangle, CheckCircle, Trash2, Pencil } from 'lucide-react';
 import React, { useState } from 'react';
 import { EWayBill, Invoice } from '../types';
 
@@ -6,12 +6,15 @@ interface EWayBillTabProps {
   ewayBills: EWayBill[];
   invoices: Invoice[];
   onAddEWayBill: (ewayBill: EWayBill) => void;
+  onUpdateEWayBill: (ewayBill: EWayBill) => void;
   onDeleteEWayBill: (id: string) => void;
 }
 
-export default function EWayBillTab({ ewayBills, invoices, onAddEWayBill, onDeleteEWayBill }: EWayBillTabProps) {
+export default function EWayBillTab({ ewayBills, invoices, onAddEWayBill, onUpdateEWayBill, onDeleteEWayBill }: EWayBillTabProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
+  const [editingEWayBill, setEditingEWayBill] = useState<EWayBill | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   // Form states
   const [invoiceId, setInvoiceId] = useState('');
@@ -63,6 +66,38 @@ export default function EWayBillTab({ ewayBills, invoices, onAddEWayBill, onDele
     setVehicleNumber('');
     setTransporterName('');
     setDistanceKm(100);
+  };
+
+  // Edit handlers
+  const handleEditClick = (ew: EWayBill) => {
+    setEditingEWayBill({ ...ew });
+    setInvoiceId(ew.invoiceId);
+    setVehicleNumber(ew.vehicleNumber);
+    setTransporterName(ew.transporterName);
+    setDistanceKm(ew.distanceKm);
+  };
+
+  const handleEditSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingEWayBill || !vehicleNumber || !transporterName) return;
+
+    const updated: EWayBill = {
+      ...editingEWayBill,
+      vehicleNumber: vehicleNumber.toUpperCase().trim(),
+      transporterName,
+      distanceKm: Number(distanceKm)
+    };
+
+    onUpdateEWayBill(updated);
+    setEditingEWayBill(null);
+    setVehicleNumber('');
+    setTransporterName('');
+    setDistanceKm(100);
+  };
+
+  const handleConfirmDelete = (id: string) => {
+    onDeleteEWayBill(id);
+    setDeleteConfirmId(null);
   };
 
   return (
@@ -175,15 +210,24 @@ export default function EWayBillTab({ ewayBills, invoices, onAddEWayBill, onDele
                       )}
                     </td>
 
-                    {/* Actions delete */}
+                    {/* Actions edit + delete */}
                     <td className="p-4 text-center">
-                      <button 
-                        onClick={() => onDeleteEWayBill(ew.id)}
-                        className="p-1.5 hover:bg-stone-100 text-stone-400 hover:text-red-500 rounded-lg cursor-pointer"
-                        title="Delete E-Way Bill"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      <div className="flex gap-1.5 justify-center items-center">
+                        <button 
+                          onClick={() => handleEditClick(ew)}
+                          className="p-1.5 hover:bg-amber-50 text-stone-400 hover:text-amber-600 rounded-lg cursor-pointer"
+                          title="Edit E-Way Bill"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <button 
+                          onClick={() => setDeleteConfirmId(ew.id)}
+                          className="p-1.5 hover:bg-stone-100 text-stone-400 hover:text-red-500 rounded-lg cursor-pointer"
+                          title="Delete E-Way Bill"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </td>
 
                   </tr>
@@ -291,6 +335,64 @@ export default function EWayBillTab({ ewayBills, invoices, onAddEWayBill, onDele
               </div>
 
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Modal */}
+      {editingEWayBill && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl shadow-lg border border-stone-200 w-full max-w-sm overflow-hidden font-sans">
+            <div className="px-6 py-4 border-b border-stone-100 flex items-center justify-between bg-[#ebf0e3]">
+              <h3 className="font-display font-extrabold text-sm text-brand-gray-dark flex items-center gap-2">
+                <Pencil className="w-4 h-4 text-brand-primary" />
+                <span>Edit E-Way Bill</span>
+              </h3>
+              <button onClick={() => setEditingEWayBill(null)} className="text-stone-400 hover:text-brand-gray-dark font-bold text-lg cursor-pointer">×</button>
+            </div>
+            <form onSubmit={handleEditSubmit} className="p-6 space-y-4">
+              <div className="space-y-1">
+                <label className="block text-xs font-semibold text-brand-gray-medium">Invoice Reference</label>
+                <input type="text" className="w-full px-3 py-2 border border-stone-200 rounded-xl text-xs bg-stone-50" value={editingEWayBill.invoiceNumber} disabled />
+              </div>
+              <div className="space-y-1">
+                <label className="block text-xs font-semibold text-brand-gray-medium">Transporter Name *</label>
+                <input type="text" className="w-full px-3 py-2 border border-stone-200 rounded-xl text-xs" required value={transporterName} onChange={(e) => setTransporterName(e.target.value)} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="block text-xs font-semibold text-brand-gray-medium">Vehicle License No *</label>
+                  <input type="text" className="w-full px-3 py-2 border border-stone-200 rounded-xl text-xs font-mono uppercase" required value={vehicleNumber} onChange={(e) => setVehicleNumber(e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <label className="block text-xs font-semibold text-brand-gray-medium">Distance (Km) *</label>
+                  <input type="number" className="w-full px-3 py-2 border border-stone-200 rounded-xl text-xs font-mono" min="1" required value={distanceKm || ''} onChange={(e) => setDistanceKm(Number(e.target.value))} />
+                </div>
+              </div>
+              <div className="pt-2 flex justify-end gap-3">
+                <button type="button" onClick={() => setEditingEWayBill(null)} className="px-4 py-2 border border-stone-200 hover:bg-stone-50 rounded-xl text-xs font-bold cursor-pointer">Cancel</button>
+                <button type="submit" className="px-5 py-2 bg-brand-primary hover:bg-brand-primary-light text-white rounded-xl text-xs font-bold cursor-pointer shadow">Save Changes</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Dialog */}
+      {deleteConfirmId && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl shadow-lg border border-stone-200 w-full max-w-sm p-6 space-y-4 font-sans">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-red-50 rounded-full"><Trash2 className="w-5 h-5 text-red-500" /></div>
+              <div>
+                <h3 className="font-bold text-sm text-brand-gray-dark">Delete E-Way Bill?</h3>
+                <p className="text-xs text-stone-500">This action cannot be undone.</p>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setDeleteConfirmId(null)} className="px-4 py-2 border border-stone-200 hover:bg-stone-50 rounded-xl text-xs font-bold cursor-pointer">Cancel</button>
+              <button onClick={() => handleConfirmDelete(deleteConfirmId)} className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-xl text-xs font-bold cursor-pointer">Delete</button>
+            </div>
           </div>
         </div>
       )}

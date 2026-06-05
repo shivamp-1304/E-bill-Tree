@@ -66,6 +66,21 @@ export const EnterpriseAPI = {
   },
 
   /**
+   * Updates an existing customer by ID.
+   */
+  async updateCustomer(id: string, data: Partial<Customer>): Promise<Customer> {
+    const res = await fetch(`/api/customers/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      throw new Error('Failed to update customer');
+    }
+    return res.json();
+  },
+
+  /**
    * Saves or updates a product in the stock catalogue.
    */
   async saveProduct(product: Product): Promise<Product> {
@@ -88,6 +103,21 @@ export const EnterpriseAPI = {
       method: 'DELETE',
     });
     return res.ok;
+  },
+
+  /**
+   * Updates an existing product by ID.
+   */
+  async updateProduct(id: string, data: Partial<Product>): Promise<Product> {
+    const res = await fetch(`/api/products/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      throw new Error('Failed to update product');
+    }
+    return res.json();
   },
 
   /**
@@ -128,6 +158,21 @@ export const EnterpriseAPI = {
   },
 
   /**
+   * Fully updates an existing invoice by ID.
+   */
+  async updateInvoice(id: string, data: Partial<Invoice>): Promise<Invoice> {
+    const res = await fetch(`/api/invoices/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      throw new Error('Failed to update invoice');
+    }
+    return res.json();
+  },
+
+  /**
    * Saves or updates a delivery challan.
    */
   async saveChallan(challan: Challan): Promise<Challan> {
@@ -153,6 +198,21 @@ export const EnterpriseAPI = {
   },
 
   /**
+   * Updates an existing delivery challan by ID.
+   */
+  async updateChallan(id: string, data: Partial<Challan>): Promise<Challan> {
+    const res = await fetch(`/api/challans/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      throw new Error('Failed to update challan');
+    }
+    return res.json();
+  },
+
+  /**
    * Saves or updates an active transporter e-way bill.
    */
   async saveEWayBill(ewayBill: EWayBill): Promise<EWayBill> {
@@ -175,6 +235,21 @@ export const EnterpriseAPI = {
       method: 'DELETE',
     });
     return res.ok;
+  },
+
+  /**
+   * Updates an existing transporter e-way bill by ID.
+   */
+  async updateEWayBill(id: string, data: Partial<EWayBill>): Promise<EWayBill> {
+    const res = await fetch(`/api/eway-bills/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      throw new Error('Failed to update e-way bill');
+    }
+    return res.json();
   },
 
   // ─── Authentication APIs ────────────────────────────────────────────────

@@ -1,4 +1,4 @@
-import { Search, Plus, FileSpreadsheet, Trash2 } from 'lucide-react';
+import { Search, Plus, FileSpreadsheet, Trash2, Pencil } from 'lucide-react';
 import React, { useState } from 'react';
 import { Challan, Customer } from '../types';
 
@@ -6,12 +6,15 @@ interface ChallansTabProps {
   challans: Challan[];
   customers: Customer[];
   onAddChallan: (challan: Challan) => void;
+  onUpdateChallan: (challan: Challan) => void;
   onDeleteChallan: (id: string) => void;
 }
 
-export default function ChallansTab({ challans, customers, onAddChallan, onDeleteChallan }: ChallansTabProps) {
+export default function ChallansTab({ challans, customers, onAddChallan, onUpdateChallan, onDeleteChallan }: ChallansTabProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
+  const [editingChallan, setEditingChallan] = useState<Challan | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   // Form states
   const [customerId, setCustomerId] = useState('');
@@ -59,6 +62,24 @@ export default function ChallansTab({ challans, customers, onAddChallan, onDelet
     setUnit('PCS');
     setPurpose('Sent for approval / Sale on return basis');
     setStatus('Pending');
+  };
+
+  const handleEditClick = (ch: Challan) => {
+    setEditingChallan(ch);
+  };
+
+  const handleEditSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingChallan) return;
+    onUpdateChallan(editingChallan);
+    setEditingChallan(null);
+  };
+
+  const handleConfirmDelete = () => {
+    if (deleteConfirmId) {
+      onDeleteChallan(deleteConfirmId);
+      setDeleteConfirmId(null);
+    }
   };
 
   return (
@@ -147,13 +168,14 @@ export default function ChallansTab({ challans, customers, onAddChallan, onDelet
                     </td>
 
                     <td className="p-4 text-center">
-                      <button 
-                        onClick={() => onDeleteChallan(ch.id)}
-                        className="p-1.5 hover:bg-stone-100 rounded-lg text-stone-400 hover:text-red-500 cursor-pointer"
-                        title="Delete dispatch"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      <div className="flex gap-1.5 justify-center">
+                        <button onClick={() => handleEditClick(ch)} className="p-1.5 hover:bg-blue-50 text-stone-400 hover:text-blue-500 rounded-lg cursor-pointer" title="Edit challan">
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                        <button onClick={() => setDeleteConfirmId(ch.id)} className="p-1.5 hover:bg-stone-100 rounded-lg text-stone-400 hover:text-red-500 cursor-pointer" title="Delete dispatch">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </td>
 
                   </tr>
@@ -279,6 +301,71 @@ export default function ChallansTab({ challans, customers, onAddChallan, onDelet
               </div>
 
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Challan Modal */}
+      {editingChallan && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl shadow-lg border border-stone-200 w-full max-w-sm overflow-hidden font-sans">
+            <div className="px-6 py-4 border-b border-stone-100 flex items-center justify-between bg-blue-50">
+              <h3 className="font-display font-bold text-sm text-brand-gray-dark flex items-center gap-2"><Pencil className="w-4 h-4 text-blue-500" /><span>Edit Challan</span></h3>
+              <button onClick={() => setEditingChallan(null)} className="text-stone-400 hover:text-brand-gray-dark font-bold text-lg cursor-pointer">×</button>
+            </div>
+            <form onSubmit={handleEditSubmit} className="p-6 space-y-4">
+              <div className="space-y-1">
+                <label className="block text-xs font-semibold text-brand-gray-medium">Customer</label>
+                <select className="w-full px-3 py-2 border border-stone-200 rounded-xl text-xs" value={editingChallan.customerId} onChange={(e) => { const c = customers.find(cu => cu.id === e.target.value); if (c) setEditingChallan({ ...editingChallan, customerId: c.id, customerName: c.name }); }}>
+                  {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="block text-xs font-semibold text-brand-gray-medium">Items (product name)</label>
+                <input type="text" className="w-full px-3 py-2 border border-stone-200 rounded-xl text-xs" value={editingChallan.items[0]?.productName || ''} onChange={(e) => { const items = [...editingChallan.items]; items[0] = { ...items[0], productName: e.target.value }; setEditingChallan({ ...editingChallan, items }); }} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="block text-xs font-semibold text-brand-gray-medium">Qty</label>
+                  <input type="number" className="w-full px-3 py-2 border border-stone-200 rounded-xl text-xs font-mono" min="1" value={editingChallan.items[0]?.qty || 1} onChange={(e) => { const items = [...editingChallan.items]; items[0] = { ...items[0], qty: Number(e.target.value) }; setEditingChallan({ ...editingChallan, items }); }} />
+                </div>
+                <div className="space-y-1">
+                  <label className="block text-xs font-semibold text-brand-gray-medium">Unit</label>
+                  <select className="w-full px-3 py-2 border border-stone-200 rounded-xl text-xs" value={editingChallan.items[0]?.unit || 'PCS'} onChange={(e) => { const items = [...editingChallan.items]; items[0] = { ...items[0], unit: e.target.value }; setEditingChallan({ ...editingChallan, items }); }}>
+                    <option value="PCS">PCS</option><option value="SET">SET</option><option value="NOS">NOS</option><option value="BOX">BOX</option>
+                  </select>
+                </div>
+              </div>
+              <div className="space-y-1">
+                <label className="block text-xs font-semibold text-brand-gray-medium">Purpose</label>
+                <input type="text" className="w-full px-3 py-2 border border-stone-200 rounded-xl text-xs" value={editingChallan.purpose} onChange={(e) => setEditingChallan({ ...editingChallan, purpose: e.target.value })} />
+              </div>
+              <div className="space-y-1">
+                <label className="block text-xs font-semibold text-brand-gray-medium">Status</label>
+                <select className="w-full px-3 py-2 border border-stone-200 rounded-xl text-xs" value={editingChallan.status} onChange={(e) => setEditingChallan({ ...editingChallan, status: e.target.value as any })}>
+                  <option value="Pending">Pending</option><option value="Returned">Returned</option><option value="Invoiced">Invoiced</option>
+                </select>
+              </div>
+              <div className="pt-2 flex justify-end gap-3">
+                <button type="button" onClick={() => setEditingChallan(null)} className="px-4 py-2 border border-stone-200 hover:bg-stone-50 rounded-xl text-xs font-semibold cursor-pointer">Cancel</button>
+                <button type="submit" className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold cursor-pointer shadow">Update Challan</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation */}
+      {deleteConfirmId && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl shadow-lg border border-stone-200 w-full max-w-sm p-6 font-sans text-center space-y-4">
+            <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center mx-auto"><Trash2 className="w-6 h-6 text-red-500" /></div>
+            <h3 className="font-display font-extrabold text-base text-brand-gray-dark">Delete Challan?</h3>
+            <p className="text-xs text-stone-500">This action cannot be undone.</p>
+            <div className="flex gap-3 justify-center pt-2">
+              <button onClick={() => setDeleteConfirmId(null)} className="px-5 py-2 border border-stone-200 hover:bg-stone-50 rounded-xl text-xs font-bold cursor-pointer">Cancel</button>
+              <button onClick={handleConfirmDelete} className="px-5 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold cursor-pointer shadow">Delete</button>
+            </div>
           </div>
         </div>
       )}

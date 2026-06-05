@@ -9,19 +9,15 @@ export interface DBPayload {
   ewayBills: EWayBill[];
 }
 
-// API base URL - empty string uses Vite proxy in dev mode
-const API_BASE = '';
-
 /**
  * Enterprise API helper services for Express communication
- * All requests go through Vite proxy (/api/*) in dev mode
  */
 export const EnterpriseAPI = {
   /**
    * Fetches the entire synced dashboard database state.
    */
   async fetchInitialData(): Promise<DBPayload> {
-    const res = await fetch(`${API_BASE}/api/db`);
+    const res = await fetch('/api/db');
     if (!res.ok) {
       throw new Error('Failed to synchronize database from server');
     }
@@ -32,7 +28,7 @@ export const EnterpriseAPI = {
    * Saves or updates the primary enterprise company profile info.
    */
   async saveCompanyProfile(profile: CompanyProfile): Promise<CompanyProfile> {
-    const res = await fetch(`${API_BASE}/api/company-profile`, {
+    const res = await fetch('/api/company-profile', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(profile),
@@ -48,7 +44,7 @@ export const EnterpriseAPI = {
    * Saves or updates a customer in the registry.
    */
   async saveCustomer(customer: Customer): Promise<Customer> {
-    const res = await fetch(`${API_BASE}/api/customers`, {
+    const res = await fetch('/api/customers', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(customer),
@@ -63,17 +59,32 @@ export const EnterpriseAPI = {
    * Deletes a customer in the registry by ID.
    */
   async deleteCustomer(id: string): Promise<boolean> {
-    const res = await fetch(`${API_BASE}/api/customers/${id}`, {
+    const res = await fetch(`/api/customers/${id}`, {
       method: 'DELETE',
     });
     return res.ok;
   },
 
   /**
+   * Updates an existing customer by ID.
+   */
+  async updateCustomer(id: string, data: Partial<Customer>): Promise<Customer> {
+    const res = await fetch(`/api/customers/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      throw new Error('Failed to update customer');
+    }
+    return res.json();
+  },
+
+  /**
    * Saves or updates a product in the stock catalogue.
    */
   async saveProduct(product: Product): Promise<Product> {
-    const res = await fetch(`${API_BASE}/api/products`, {
+    const res = await fetch('/api/products', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(product),
@@ -88,17 +99,32 @@ export const EnterpriseAPI = {
    * Deletes a product in the catalogue by ID.
    */
   async deleteProduct(id: string): Promise<boolean> {
-    const res = await fetch(`${API_BASE}/api/products/${id}`, {
+    const res = await fetch(`/api/products/${id}`, {
       method: 'DELETE',
     });
     return res.ok;
   },
 
   /**
+   * Updates an existing product by ID.
+   */
+  async updateProduct(id: string, data: Partial<Product>): Promise<Product> {
+    const res = await fetch(`/api/products/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      throw new Error('Failed to update product');
+    }
+    return res.json();
+  },
+
+  /**
    * Saves or updates a tax invoice.
    */
   async saveInvoice(invoice: Invoice): Promise<Invoice> {
-    const res = await fetch(`${API_BASE}/api/invoices`, {
+    const res = await fetch('/api/invoices', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(invoice),
@@ -113,7 +139,7 @@ export const EnterpriseAPI = {
    * Deletes a tax invoice by ID.
    */
   async deleteInvoice(id: string): Promise<boolean> {
-    const res = await fetch(`${API_BASE}/api/invoices/${id}`, {
+    const res = await fetch(`/api/invoices/${id}`, {
       method: 'DELETE',
     });
     return res.ok;
@@ -123,7 +149,7 @@ export const EnterpriseAPI = {
    * Updates an invoice payment/processing status.
    */
   async updateInvoiceStatus(id: string, status: Invoice['status']): Promise<boolean> {
-    const res = await fetch(`${API_BASE}/api/invoices/${id}/status`, {
+    const res = await fetch(`/api/invoices/${id}/status`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status }),
@@ -132,10 +158,25 @@ export const EnterpriseAPI = {
   },
 
   /**
+   * Fully updates an existing invoice by ID.
+   */
+  async updateInvoice(id: string, data: Partial<Invoice>): Promise<Invoice> {
+    const res = await fetch(`/api/invoices/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      throw new Error('Failed to update invoice');
+    }
+    return res.json();
+  },
+
+  /**
    * Saves or updates a delivery challan.
    */
   async saveChallan(challan: Challan): Promise<Challan> {
-    const res = await fetch(`${API_BASE}/api/challans`, {
+    const res = await fetch('/api/challans', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(challan),
@@ -150,17 +191,32 @@ export const EnterpriseAPI = {
    * Deletes a delivery challan by ID.
    */
   async deleteChallan(id: string): Promise<boolean> {
-    const res = await fetch(`${API_BASE}/api/challans/${id}`, {
+    const res = await fetch(`/api/challans/${id}`, {
       method: 'DELETE',
     });
     return res.ok;
   },
 
   /**
+   * Updates an existing delivery challan by ID.
+   */
+  async updateChallan(id: string, data: Partial<Challan>): Promise<Challan> {
+    const res = await fetch(`/api/challans/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      throw new Error('Failed to update challan');
+    }
+    return res.json();
+  },
+
+  /**
    * Saves or updates an active transporter e-way bill.
    */
   async saveEWayBill(ewayBill: EWayBill): Promise<EWayBill> {
-    const res = await fetch(`${API_BASE}/api/eway-bills`, {
+    const res = await fetch('/api/eway-bills', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(ewayBill),
@@ -175,16 +231,31 @@ export const EnterpriseAPI = {
    * Deletes/cancels an active transporter e-way bill.
    */
   async deleteEWayBill(id: string): Promise<boolean> {
-    const res = await fetch(`${API_BASE}/api/eway-bills/${id}`, {
+    const res = await fetch(`/api/eway-bills/${id}`, {
       method: 'DELETE',
     });
     return res.ok;
   },
 
+  /**
+   * Updates an existing transporter e-way bill by ID.
+   */
+  async updateEWayBill(id: string, data: Partial<EWayBill>): Promise<EWayBill> {
+    const res = await fetch(`/api/eway-bills/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      throw new Error('Failed to update e-way bill');
+    }
+    return res.json();
+  },
+
   // ─── Authentication APIs ────────────────────────────────────────────────
 
   async register(data: { ownerName: string; companyName: string; email: string; password: string; phone?: string; gstNumber?: string; address?: string }): Promise<{ success: boolean; userId: string; email: string; otp: string }> {
-    const res = await fetch(`${API_BASE}/api/auth/register`, {
+    const res = await fetch('/api/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
@@ -197,7 +268,7 @@ export const EnterpriseAPI = {
   },
 
   async login(email: string, password: string): Promise<{ success: boolean; userId: string; ownerName: string; companyName: string; email: string }> {
-    const res = await fetch(`${API_BASE}/api/auth/login`, {
+    const res = await fetch('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
@@ -210,7 +281,7 @@ export const EnterpriseAPI = {
   },
 
   async forgotPassword(email: string): Promise<{ success: boolean; email: string; otp: string }> {
-    const res = await fetch(`${API_BASE}/api/auth/forgot-password`, {
+    const res = await fetch('/api/auth/forgot-password', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email }),
@@ -223,7 +294,7 @@ export const EnterpriseAPI = {
   },
 
   async verifyOtp(email: string, otp: string): Promise<{ success: boolean }> {
-    const res = await fetch(`${API_BASE}/api/auth/verify-otp`, {
+    const res = await fetch('/api/auth/verify-otp', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, otp }),
@@ -236,7 +307,7 @@ export const EnterpriseAPI = {
   },
 
   async resetPassword(email: string, password: string): Promise<{ success: boolean }> {
-    const res = await fetch(`${API_BASE}/api/auth/reset-password`, {
+    const res = await fetch('/api/auth/reset-password', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
@@ -251,7 +322,7 @@ export const EnterpriseAPI = {
   // ─── User Profile APIs ──────────────────────────────────────────────────
 
   async getUserProfile(userId: string): Promise<{ id: string; ownerName: string; companyName: string; email: string; phone: string; gstNumber: string; address: string; avatarUrl?: string; registeredAt: string }> {
-    const res = await fetch(`${API_BASE}/api/users/${userId}`);
+    const res = await fetch(`/api/users/${userId}`);
     if (!res.ok) {
       const err = await res.json();
       throw new Error(err.error || 'Failed to fetch user profile');
@@ -260,7 +331,7 @@ export const EnterpriseAPI = {
   },
 
   async updateUserProfile(userId: string, data: { ownerName?: string; companyName?: string; phone?: string; gstNumber?: string; address?: string; avatarUrl?: string }): Promise<{ success: boolean; user: { id: string; ownerName: string; companyName: string; email: string; phone: string; gstNumber: string; address: string; avatarUrl?: string } }> {
-    const res = await fetch(`${API_BASE}/api/users/${userId}`, {
+    const res = await fetch(`/api/users/${userId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),

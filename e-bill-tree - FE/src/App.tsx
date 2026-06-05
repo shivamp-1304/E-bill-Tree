@@ -121,6 +121,13 @@ export default function App() {
     EnterpriseAPI.deleteCustomer(id).catch(console.error);
   };
 
+  const handleUpdateCustomer = (updatedCust: Customer) => {
+    const updated = customers.map(c => c.id === updatedCust.id ? updatedCust : c);
+    setCustomers(updated);
+    setStoredData('ebt_customers', updated);
+    EnterpriseAPI.updateCustomer(updatedCust.id, updatedCust).catch(console.error);
+  };
+
   const handleAddProduct = (prod: Product) => {
     const updated = [...products.filter(p => p.id !== prod.id), prod];
     setProducts(updated);
@@ -135,6 +142,13 @@ export default function App() {
     EnterpriseAPI.deleteProduct(id).catch(console.error);
   };
 
+  const handleUpdateProduct = (updatedProd: Product) => {
+    const updated = products.map(p => p.id === updatedProd.id ? updatedProd : p);
+    setProducts(updated);
+    setStoredData('ebt_products', updated);
+    EnterpriseAPI.updateProduct(updatedProd.id, updatedProd).catch(console.error);
+  };
+
   const handleAddInvoice = (inv: Invoice) => {
     const updated = [...invoices.filter(i => i.id !== inv.id), inv];
     setInvoices(updated);
@@ -147,6 +161,13 @@ export default function App() {
     setInvoices(updated);
     setStoredData('ebt_invoices', updated);
     EnterpriseAPI.deleteInvoice(id).catch(console.error);
+  };
+
+  const handleUpdateInvoice = (updatedInv: Invoice) => {
+    const updated = invoices.map(inv => inv.id === updatedInv.id ? updatedInv : inv);
+    setInvoices(updated);
+    setStoredData('ebt_invoices', updated);
+    EnterpriseAPI.updateInvoice(updatedInv.id, updatedInv).catch(console.error);
   };
 
   const handleUpdateInvoiceStatus = (id: string, status: Invoice['status']) => {
@@ -170,6 +191,13 @@ export default function App() {
     EnterpriseAPI.deleteChallan(id).catch(console.error);
   };
 
+  const handleUpdateChallan = (updatedCh: Challan) => {
+    const updated = challans.map(ch => ch.id === updatedCh.id ? updatedCh : ch);
+    setChallans(updated);
+    setStoredData('ebt_challans', updated);
+    EnterpriseAPI.updateChallan(updatedCh.id, updatedCh).catch(console.error);
+  };
+
   const handleAddEWayBill = (ew: EWayBill) => {
     const updated = [...ewayBills.filter(e => e.id !== ew.id), ew];
     setEwayBills(updated);
@@ -182,6 +210,13 @@ export default function App() {
     setEwayBills(updated);
     setStoredData('ebt_eway_bills', updated);
     EnterpriseAPI.deleteEWayBill(id).catch(console.error);
+  };
+
+  const handleUpdateEWayBill = (updatedEw: EWayBill) => {
+    const updated = ewayBills.map(ew => ew.id === updatedEw.id ? updatedEw : ew);
+    setEwayBills(updated);
+    setStoredData('ebt_eway_bills', updated);
+    EnterpriseAPI.updateEWayBill(updatedEw.id, updatedEw).catch(console.error);
   };
 
   const handleLoginSuccess = (user: string, company: string) => {
@@ -476,6 +511,7 @@ export default function App() {
                     customers={customers}
                     products={products}
                     onAddInvoice={handleAddInvoice}
+                    onUpdateInvoice={handleUpdateInvoice}
                     onDeleteInvoice={handleDeleteInvoice}
                     onUpdateInvoiceStatus={handleUpdateInvoiceStatus}
                   />
@@ -486,6 +522,7 @@ export default function App() {
                     challans={challans}
                     customers={customers}
                     onAddChallan={handleAddChallan}
+                    onUpdateChallan={handleUpdateChallan}
                     onDeleteChallan={handleDeleteChallan}
                   />
                 )}
@@ -495,6 +532,7 @@ export default function App() {
                     ewayBills={ewayBills}
                     invoices={invoices}
                     onAddEWayBill={handleAddEWayBill}
+                    onUpdateEWayBill={handleUpdateEWayBill}
                     onDeleteEWayBill={handleDeleteEWayBill}
                   />
                 )}
@@ -503,6 +541,7 @@ export default function App() {
                   <CustomersTab 
                     customers={customers}
                     onAddCustomer={handleAddCustomer}
+                    onUpdateCustomer={handleUpdateCustomer}
                     onDeleteCustomer={handleDeleteCustomer}
                   />
                 )}
@@ -511,6 +550,7 @@ export default function App() {
                   <ProductsTab 
                     products={products}
                     onAddProduct={handleAddProduct}
+                    onUpdateProduct={handleUpdateProduct}
                     onDeleteProduct={handleDeleteProduct}
                   />
                 )}

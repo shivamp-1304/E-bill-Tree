@@ -1,16 +1,19 @@
-import { Search, Plus, UserPlus, Mail, Phone, MapPin, Building, Trash2 } from 'lucide-react';
+import { Search, Plus, UserPlus, Mail, Phone, MapPin, Building, Trash2, Pencil } from 'lucide-react';
 import React, { useState } from 'react';
 import { Customer } from '../types';
 
 interface CustomersTabProps {
   customers: Customer[];
   onAddCustomer: (customer: Customer) => void;
+  onUpdateCustomer: (customer: Customer) => void;
   onDeleteCustomer: (id: string) => void;
 }
 
-export default function CustomersTab({ customers, onAddCustomer, onDeleteCustomer }: CustomersTabProps) {
+export default function CustomersTab({ customers, onAddCustomer, onUpdateCustomer, onDeleteCustomer }: CustomersTabProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
+  const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   // Form states
   const [name, setName] = useState('');
@@ -59,6 +62,29 @@ export default function CustomersTab({ customers, onAddCustomer, onDeleteCustome
     setCity('');
     setState('Maharashtra');
     setPincode('');
+  };
+
+  // Open edit modal with pre-filled data
+  const handleEditClick = (cust: Customer) => {
+    setEditingCustomer(cust);
+  };
+
+  const handleEditSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingCustomer) return;
+    if (!editingCustomer.name || !editingCustomer.email || !editingCustomer.phone) {
+      alert('Please fill in all required fields!');
+      return;
+    }
+    onUpdateCustomer(editingCustomer);
+    setEditingCustomer(null);
+  };
+
+  const handleConfirmDelete = () => {
+    if (deleteConfirmId) {
+      onDeleteCustomer(deleteConfirmId);
+      setDeleteConfirmId(null);
+    }
   };
 
   return (
@@ -142,13 +168,22 @@ export default function CustomersTab({ customers, onAddCustomer, onDeleteCustome
 
                     {/* Core action bars */}
                     <td className="p-4 text-center">
-                      <button 
-                        onClick={() => onDeleteCustomer(c.id)}
-                        className="p-1.5 hover:bg-red-50 text-stone-400 hover:text-red-500 rounded-lg transition-colors cursor-pointer inline-flex"
-                        title="Delete customer"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      <div className="flex gap-1.5 justify-center">
+                        <button 
+                          onClick={() => handleEditClick(c)}
+                          className="p-1.5 hover:bg-blue-50 text-stone-400 hover:text-blue-500 rounded-lg transition-colors cursor-pointer inline-flex"
+                          title="Edit customer"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                        <button 
+                          onClick={() => setDeleteConfirmId(c.id)}
+                          className="p-1.5 hover:bg-red-50 text-stone-400 hover:text-red-500 rounded-lg transition-colors cursor-pointer inline-flex"
+                          title="Delete customer"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </td>
 
                   </tr>
@@ -300,6 +335,84 @@ export default function CustomersTab({ customers, onAddCustomer, onDeleteCustome
               </div>
 
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Customer Modal */}
+      {editingCustomer && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl shadow-lg border border-stone-200 w-full max-w-md overflow-hidden font-sans">
+            <div className="px-6 py-4 border-b border-stone-100 flex items-center justify-between bg-blue-50">
+              <h3 className="font-display font-extrabold text-sm text-brand-gray-dark flex items-center gap-2">
+                <Pencil className="w-4 h-4 text-blue-500" />
+                <span>Edit Customer</span>
+              </h3>
+              <button onClick={() => setEditingCustomer(null)} className="text-stone-400 hover:text-brand-gray-dark text-lg font-bold cursor-pointer">×</button>
+            </div>
+            <form onSubmit={handleEditSubmit} className="p-6 space-y-4">
+              <div className="space-y-1">
+                <label className="block text-xs font-semibold text-brand-gray-medium">Company / Customer Name *</label>
+                <input type="text" className="w-full px-3 py-2 border border-stone-200 rounded-xl text-xs focus:ring-1 focus:ring-blue-500 outline-none" required value={editingCustomer.name} onChange={(e) => setEditingCustomer({ ...editingCustomer, name: e.target.value })} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="block text-xs font-semibold text-brand-gray-medium">GSTIN</label>
+                  <input type="text" className="w-full px-3 py-2 border border-stone-200 rounded-xl text-xs uppercase font-mono outline-none focus:ring-1 focus:ring-blue-500" value={editingCustomer.gstNumber || ''} onChange={(e) => setEditingCustomer({ ...editingCustomer, gstNumber: e.target.value.toUpperCase() })} />
+                </div>
+                <div className="space-y-1">
+                  <label className="block text-xs font-semibold text-brand-gray-medium">State *</label>
+                  <select className="w-full px-3 py-2 border border-stone-200 rounded-xl text-xs focus:ring-1" value={editingCustomer.state} onChange={(e) => setEditingCustomer({ ...editingCustomer, state: e.target.value })}>
+                    <option value="Maharashtra">Maharashtra</option><option value="Karnataka">Karnataka</option><option value="Delhi">Delhi</option><option value="Tamil Nadu">Tamil Nadu</option><option value="Uttar Pradesh">Uttar Pradesh</option><option value="Gujarat">Gujarat</option>
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="block text-xs font-semibold text-brand-gray-medium">Email *</label>
+                  <input type="email" className="w-full px-3 py-2 border border-stone-200 rounded-xl text-xs focus:ring-1" required value={editingCustomer.email} onChange={(e) => setEditingCustomer({ ...editingCustomer, email: e.target.value })} />
+                </div>
+                <div className="space-y-1">
+                  <label className="block text-xs font-semibold text-brand-gray-medium">Phone *</label>
+                  <input type="tel" className="w-full px-3 py-2 border border-stone-200 rounded-xl text-xs focus:ring-1" required value={editingCustomer.phone} onChange={(e) => setEditingCustomer({ ...editingCustomer, phone: e.target.value })} />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <label className="block text-xs font-semibold text-brand-gray-medium">Address</label>
+                <input type="text" className="w-full px-3 py-2 border border-stone-200 rounded-xl text-xs" value={editingCustomer.address} onChange={(e) => setEditingCustomer({ ...editingCustomer, address: e.target.value })} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="block text-xs font-semibold text-brand-gray-medium">City</label>
+                  <input type="text" className="w-full px-3 py-2 border border-stone-200 rounded-xl text-xs" value={editingCustomer.city} onChange={(e) => setEditingCustomer({ ...editingCustomer, city: e.target.value })} />
+                </div>
+                <div className="space-y-1">
+                  <label className="block text-xs font-semibold text-brand-gray-medium">Pincode</label>
+                  <input type="text" className="w-full px-3 py-2 border border-stone-200 rounded-xl text-xs" value={editingCustomer.pincode} onChange={(e) => setEditingCustomer({ ...editingCustomer, pincode: e.target.value })} />
+                </div>
+              </div>
+              <div className="pt-2 flex justify-end gap-3">
+                <button type="button" onClick={() => setEditingCustomer(null)} className="px-4 py-2 border border-stone-200 hover:bg-stone-50 rounded-xl text-xs font-bold cursor-pointer">Cancel</button>
+                <button type="submit" className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold cursor-pointer shadow">Update Customer</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Dialog */}
+      {deleteConfirmId && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl shadow-lg border border-stone-200 w-full max-w-sm p-6 font-sans text-center space-y-4">
+            <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center mx-auto">
+              <Trash2 className="w-6 h-6 text-red-500" />
+            </div>
+            <h3 className="font-display font-extrabold text-base text-brand-gray-dark">Delete Customer?</h3>
+            <p className="text-xs text-stone-500">This action cannot be undone. The customer will be permanently removed from your registry.</p>
+            <div className="flex gap-3 justify-center pt-2">
+              <button onClick={() => setDeleteConfirmId(null)} className="px-5 py-2 border border-stone-200 hover:bg-stone-50 rounded-xl text-xs font-bold cursor-pointer">Cancel</button>
+              <button onClick={handleConfirmDelete} className="px-5 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold cursor-pointer shadow">Delete</button>
+            </div>
           </div>
         </div>
       )}
